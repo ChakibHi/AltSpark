@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+  <title>AltSpark</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="popup-body">
+    <main class="popup-panel" role="dialog" aria-labelledby="popup-title">
+      <header class="popup-header">
+        <div class="popup-header__text">
+          <h1 id="popup-title" class="popup-title">
+            <span class="popup-title__brand">AltSpark</span>
+            <span class="popup-title__badge">Local</span>
+          </h1>
+          <p id="status-message" class="popup-message" role="status" aria-live="polite"></p>
+        </div>
+      </header>
+
+      <section class="popup-status-strip" aria-label="Autopilot status">
+        <span id="autopilot-status" class="status-pill">Autopilot: --</span>
+        <span class="status-strip__divider" aria-hidden="true">&bull;</span>
+        <span id="audit-duration" class="status-duration" title="Time to scan and apply safe fixes.">Last audit: --</span>
+      </section>
+
+      <section class="popup-findings" aria-label="Findings state">
+        <span id="findings-state" class="state-chip" data-tone="neutral">Scan needed</span>
+      </section>
+
+      <section class="popup-counters" aria-label="Quick snapshot">
+        <div class="counter-card" title="Issues pending review or apply">
+          <div>
+            <div class="counter-label">Pending</div>
+            <div id="count-pending" class="counter-value">0</div>
+          </div>
+        </div>
+        <div class="counter-card" title="Fixes applied in the last audit">
+          <div>
+            <div class="counter-label">Applied</div>
+            <div id="count-applied" class="counter-value">0</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="popup-actions" aria-label="Primary actions">
+        <button id="primary-action" type="button" class="primary" data-action="quick-fix">Quick Fix</button>
+        <button id="secondary-action" type="button" class="secondary" data-action="scan">Scan</button>
+      </section>
+
+      <section aria-label="Details" class="popup-actions">
+        <button id="open-panel" type="button" class="secondary">Open Side Panel</button>
+      </section>
+
+      <!-- Keep site-level controls out of the popup for a simpler basic UI.
+           They remain available in the side panel settings view. -->
+
+      <section class="popup-section" aria-label="Global controls">
+        <h2 class="section-title">Autopilot</h2>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-autopilot" />
+          <span>Pause Autopilot (all sites)</span>
+        </label>
+        <button id="open-settings" type="button" class="ghost">Settings…</button>
+      </section>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

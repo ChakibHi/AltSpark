@@ -1,0 +1,6 @@
+/tmp
+/playwright-report
+/test-results
+/tmp/playwright-user-data
+/node_modules
+/utils

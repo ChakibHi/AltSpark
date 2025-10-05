@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+  <title>AltSpark - Side Panel</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="sidepanel-body">
+    <main class="sidepanel-container" role="main">
+      <header class="sidepanel-header">
+        <div class="sidepanel-header__text">
+          <h1 class="sidepanel-title">AltSpark</h1>
+          <p id="panel-site" class="panel-site">Loading active tab.</p>
+          <p class="panel-meta">
+            <span id="panel-context">This tab</span>
+            <span aria-hidden="true" class="panel-meta__divider">&bull;</span>
+            <span id="panel-audit-duration" class="panel-meta__duration">Last audit: --</span>
+          </p>
+          <p id="panel-status" class="panel-status" role="status" aria-live="polite">Preparing.</p>
+        </div>
+        <div class="sidepanel-header-actions">
+          <button id="panel-open-popup" type="button" class="ghost">Open popup</button>
+          <button id="toolbar-scan" type="button" class="secondary">Scan</button>
+        </div>
+      </header>
+
+      <nav class="sidepanel-tabs" role="tablist">
+        <button type="button" class="sidepanel-tab active" data-view="findings" role="tab" aria-selected="true">Findings</button>
+        <button type="button" class="sidepanel-tab" data-view="settings" role="tab" aria-selected="false">Settings</button>
+      </nav>
+
+      <section class="sidepanel-view" data-view="findings" role="tabpanel">
+        <div class="sidepanel-toolbar" role="toolbar" aria-label="Findings actions">
+          <button id="toolbar-apply-safe" type="button" class="primary">Apply Safe fixes</button>
+          <button id="toolbar-undo" type="button" class="secondary">Undo</button>
+        </div>
+
+        <section class="sidepanel-summary" aria-label="Summary">
+          <div class="summary-chips" role="list">
+            <button type="button" class="summary-chip" data-filter="image" role="listitem">
+              <span class="summary-chip__label">Images</span>
+              <span id="summary-image-count" class="summary-chip__count">0</span>
+            </button>
+            <button type="button" class="summary-chip" data-filter="link" role="listitem">
+              <span class="summary-chip__label">Links</span>
+              <span id="summary-link-count" class="summary-chip__count">0</span>
+            </button>
+            <button type="button" class="summary-chip" data-filter="heading" role="listitem">
+              <span class="summary-chip__label">Headings</span>
+              <span id="summary-heading-count" class="summary-chip__count">0</span>
+            </button>
+          </div>
+          <div class="summary-progress">
+            <div class="progress-track">
+              <div id="phase-progress" class="progress-value" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <span id="phase-label" class="progress-label">Idle</span>
+          </div>
+        </section>
+
+        <section id="panel-message" class="panel-message" aria-live="polite" hidden></section>
+
+        <section class="findings-list" aria-label="Findings">
+          <div id="panel-empty" class="panel-empty">Run an audit to populate findings.</div>
+          <ul id="panel-issue-list" class="issue-list" role="list"></ul>
+        </section>
+
+        <footer class="sidepanel-footer">
+          <div class="footer-actions">
+            <button id="footer-apply-all" type="button" class="primary">Apply all Safe</button>
+            <button id="footer-revert-all" type="button" class="secondary">Revert all</button>
+            <button id="footer-export" type="button" class="ghost">Export .md</button>
+          </div>
+          <p id="footer-meta" class="footer-meta">0 applied • 0 reverted</p>
+        </footer>
+
+        <div id="panel-announcer" class="visually-hidden" aria-live="polite"></div>
+      </section>
+
+      <section class="sidepanel-view sidepanel-view--hidden" data-view="settings" role="tabpanel" aria-hidden="true">
+        <form id="settings-form" class="settings-form">
+          <fieldset>
+            <legend>Audit coverage</legend>
+            <label class="toggle">
+              <input type="checkbox" name="auditImages" />
+              <span>Audit images for alt text</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" name="auditLinks" />
+              <span>Audit links for clearer labels</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" name="auditHeadings" />
+              <span>Audit headings for clarity</span>
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Suggestions</legend>
+            <label class="toggle">
+              <input type="checkbox" name="preferAriaLabel" />
+              <span>Prefer aria-label over text replace</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" name="offerTranslations" />
+              <span>Offer translated variants</span>
+            </label>
+            <label class="dropdown-label" for="userLanguage">Primary language</label>
+            <select id="userLanguage" name="userLanguage">
+              <option value="auto">Auto-detect</option>
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="it">Italian</option>
+            </select>
+          </fieldset>
+          <fieldset>
+            <legend>Automation</legend>
+            <label class="toggle">
+              <input type="checkbox" name="autoApplySafe" />
+              <span>Auto-apply safe fixes across pages</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" name="powerSaverMode" />
+              <span>Power saver mode (pause auto-audits)</span>
+            </label>
+            <p class="settings-hint">Settings save automatically for all tabs.</p>
+          </fieldset>
+        </form>
+      </section>
+    </main>
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

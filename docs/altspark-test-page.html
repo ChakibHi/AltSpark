@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AltSpark Test Page</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        line-height: 1.6;
+        --accent: #5b3cc4;
+        --accent-dark: #3b2487;
+        --muted: #f5f4ff;
+        --text-muted: #5d5a6d;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #ffffff;
+        color: #221b33;
+      }
+
+      a {
+        color: var(--accent-dark);
+      }
+
+      header {
+        background: var(--muted);
+        border-bottom: 3px solid var(--accent);
+      }
+
+      .header-inner {
+        margin: 0 auto;
+        padding: 2rem clamp(1rem, 4vw, 3rem);
+        display: flex;
+        gap: 2rem;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .brand img {
+        width: 72px;
+        height: 72px;
+        border-radius: 18px;
+        object-fit: cover;
+        border: 3px solid var(--accent);
+      }
+
+      nav ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      nav a {
+        font-weight: 600;
+        text-decoration: none;
+        padding: 0.4rem 0.75rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+      }
+
+      nav a:hover {
+        border-color: var(--accent);
+      }
+
+      main {
+        margin: 0 auto;
+        padding: clamp(1.5rem, 3vw, 4rem);
+        max-width: 1100px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 1.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        align-items: center;
+        margin-bottom: 3.5rem;
+      }
+
+      .hero figure {
+        margin: 0;
+        position: relative;
+        overflow: hidden;
+        border-radius: 1.5rem;
+        border: 3px solid var(--accent);
+      }
+
+      .hero img {
+        width: 100%;
+        height: 100%;
+        max-height: 320px;
+        object-fit: cover;
+        display: block;
+      }
+
+      .hero figcaption {
+        position: absolute;
+        inset: auto 0 0 0;
+        background: linear-gradient(180deg, rgba(19, 12, 42, 0) 0%, rgba(19, 12, 42, 0.8) 100%);
+        color: white;
+        padding: 1rem;
+        font-size: 0.9rem;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(91, 60, 196, 0.15);
+        color: var(--accent-dark);
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background: var(--accent);
+        color: white;
+        text-decoration: none;
+        font-weight: 600;
+        padding: 0.8rem 1.6rem;
+        border-radius: 0.9rem;
+        transition: background 0.2s ease;
+      }
+
+      .button:hover {
+        background: var(--accent-dark);
+      }
+
+      .split {
+        display: grid;
+        gap: 2rem;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        margin-bottom: 3.5rem;
+      }
+
+      .card {
+        padding: 1.5rem;
+        border: 1px solid #e3defa;
+        border-radius: 1.5rem;
+        background: white;
+        display: grid;
+        gap: 1rem;
+      }
+
+      .card img {
+        width: 100%;
+        border-radius: 1rem;
+        max-height: 220px;
+        object-fit: cover;
+      }
+
+      .card footer {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .card footer a {
+        font-weight: 600;
+        text-decoration: none;
+        padding: 0.5rem 0.9rem;
+        border: 1px solid var(--accent);
+        border-radius: 999px;
+      }
+
+      .card footer a.secondary {
+        border-color: transparent;
+        background: rgba(91, 60, 196, 0.12);
+      }
+
+      .section-heading {
+        font-size: clamp(1.8rem, 4vw, 2.4rem);
+        margin-bottom: 1rem;
+      }
+
+      .section-intro {
+        max-width: 60ch;
+        color: var(--text-muted);
+        margin-bottom: 2rem;
+      }
+
+      .cta {
+        padding: 2.5rem;
+        border-radius: 2rem;
+        background: linear-gradient(135deg, rgba(91, 60, 196, 0.18), rgba(246, 232, 255, 0.8));
+        display: grid;
+        gap: 1.5rem;
+        margin-bottom: 3.5rem;
+      }
+
+      .cta form {
+        display: grid;
+        gap: 1rem;
+        max-width: 460px;
+      }
+
+      label {
+        font-weight: 600;
+      }
+
+      input,
+      textarea,
+      select {
+        padding: 0.65rem 0.8rem;
+        border-radius: 0.75rem;
+        border: 1px solid #cfc6f8;
+        font: inherit;
+      }
+
+      .testimonial-grid {
+        display: grid;
+        gap: 1.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      }
+
+      blockquote {
+        margin: 0;
+        padding: 1.5rem;
+        border-radius: 1.5rem;
+        background: #f8f5ff;
+        font-style: italic;
+        border-left: 6px solid var(--accent);
+      }
+
+      blockquote cite {
+        display: block;
+        margin-top: 1rem;
+        font-style: normal;
+        font-weight: 600;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin-bottom: 1.5rem;
+      }
+
+      th,
+      td {
+        border: 1px solid #e7e1fe;
+        padding: 0.75rem;
+        text-align: left;
+      }
+
+      caption {
+        text-align: left;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+      }
+
+      footer {
+        padding: 2rem clamp(1rem, 4vw, 3rem);
+        background: #120a2f;
+        color: #cfc6f8;
+        display: grid;
+        gap: 1rem;
+      }
+
+      footer a {
+        color: #dbcdfd;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="header-inner">
+        <div class="brand">
+          <img
+            src="https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=crop&w=160&q=80"
+            alt="Purple retro microphone with a blurred studio background"
+          />
+          <div>
+            <p class="badge">Demo newsroom</p>
+            <h1 style="margin: 0">City Signal Live</h1>
+            <p style="margin: 0; color: var(--text-muted)">
+              Purpose-built test page for the AltSpark extension.
+            </p>
+          </div>
+        </div>
+        <nav aria-label="Primary">
+          <ul>
+            <li><a href="#top-stories">Top stories</a></li>
+            <li><a href="#cta">Newsletter</a></li>
+            <li><a href="#events">Events</a></li>
+            <li><a href="#footer-links">Resources</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-heading">
+        <div>
+          <h2 id="hero-heading" class="section-heading">Tonight's rundown</h2>
+          <p class="section-intro">
+            Use this page to experiment with accessibility-focused copy audits. Some images, links, and headings are intentionally
+            vague so the extension has something to flag. Others are well described for comparison.
+          </p>
+          <ul>
+            <li>Highlight text and run the selection audit to check tone suggestions.</li>
+            <li>
+              Inspect the cards below—each uses a different style of alt text so you can test rewrite recommendations.
+            </li>
+            <li>Scroll further for ambiguous link labels, repetitive headings, and form helper text.</li>
+          </ul>
+          <a class="button" href="#events">Jump to the event schedule</a>
+        </div>
+        <figure>
+          <img
+            src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80"
+            alt=""
+          />
+          <figcaption>
+            Intentionally empty alt attribute above to simulate a missing description. Try having the extension rewrite it.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section id="top-stories" aria-labelledby="stories-heading">
+        <h2 id="stories-heading" class="section-heading">Top stories</h2>
+        <p class="section-intro">
+          Each card offers a different combination of link labels and supporting copy. Run the full-page audit to compare the
+          findings surfaced for images, headings, and anchor text.
+        </p>
+        <div class="split">
+          <article class="card">
+            <img
+              src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=900&q=80"
+              alt="Volunteers collaborate around a table covered with maps and sticky notes"
+            />
+            <div>
+              <h3>Neighborhood response drill</h3>
+              <p>
+                Emergency crews are teaming up with community organizers to test a new rapid-alert system. The pilot focuses on
+                multi-lingual messaging and hyperlocal updates.
+              </p>
+            </div>
+            <footer>
+              <a href="https://example.com/community-alerts">Detailed briefing</a>
+              <a class="secondary" href="https://example.com/alerts">Read more</a>
+            </footer>
+          </article>
+
+          <article class="card">
+            <img
+              src="https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=900&q=80"
+              alt="Image"
+            />
+            <div>
+              <h3>Riverfront update</h3>
+              <p>
+                Construction pauses continue near the east docks. Merchants are requesting better signage while the detour
+                remains in place.
+              </p>
+            </div>
+            <footer>
+              <a class="secondary" href="https://example.com/docks">Click here</a>
+              <a href="https://example.com/detour-plan">Detour plan overview</a>
+            </footer>
+          </article>
+
+          <article class="card">
+            <img
+              src="https://images.unsplash.com/photo-1461280360983-bd93eaa5051b?auto=format&fit=crop&w=900&q=80"
+              alt="A very long and overly detailed description that mentions every single element: people jogging, a dog, a bike, the sky, trees, benches, a lamp post, clouds, and the feel of morning humidity all at once"
+            />
+            <div>
+              <h3>Morning commute snapshot</h3>
+              <p>
+                City Signal photographers captured how residents are using the re-opened lakeside trail. The gallery explores the
+                balance between bikes, walkers, and new curb extensions.
+              </p>
+            </div>
+            <footer>
+              <a href="https://example.com/trail-survey">Survey results</a>
+              <a class="secondary" href="https://example.com/gallery">See gallery</a>
+            </footer>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="generic-heading">
+        <h2 id="generic-heading" class="section-heading">Section</h2>
+        <p class="section-intro">
+          The heading above intentionally uses a generic label. Tools like AltSpark can suggest more specific options
+          based on the surrounding copy.
+        </p>
+        <table aria-describedby="generic-heading">
+          <caption>Communication checklist</caption>
+          <thead>
+            <tr>
+              <th scope="col">Channel</th>
+              <th scope="col">Status</th>
+              <th scope="col">Owner</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>SMS alerts</td>
+              <td>Ready</td>
+              <td>R. Lee</td>
+            </tr>
+            <tr>
+              <td>Community bulletin</td>
+              <td>Drafting</td>
+              <td>A. Gomez</td>
+            </tr>
+            <tr>
+              <td>Accessibility brief</td>
+              <td>Needs review</td>
+              <td>M. Singh</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          Some descriptions above are intentionally short. Try selecting a sentence and running the extension's rewrite command
+          to see suggested improvements.
+        </p>
+      </section>
+
+      <section id="cta" class="cta" aria-labelledby="cta-heading">
+        <div>
+          <h2 id="cta-heading" class="section-heading">Subscribe for live updates</h2>
+          <p class="section-intro">
+            Stay ahead of safety alerts, accessibility improvements, and translation resources. This form mixes clear helper text
+            with one input that lacks an explicit label to mimic real-world issues.
+          </p>
+        </div>
+        <form>
+          <div>
+            <label for="name">Full name</label>
+            <input id="name" name="name" type="text" autocomplete="name" placeholder="Add your name" />
+          </div>
+          <div>
+            <label for="email">Email address</label>
+            <input id="email" name="email" type="email" autocomplete="email" placeholder="name@example.com" />
+          </div>
+          <div>
+            <span class="sr-only">Mobile phone (label intentionally missing)</span>
+            <input name="phone" type="tel" placeholder="Phone number for SMS alerts" />
+          </div>
+          <div>
+            <label for="language">Preferred language for alerts</label>
+            <select id="language" name="language">
+              <option value="" selected>Choose one</option>
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="zh">Mandarin</option>
+            </select>
+          </div>
+          <button type="submit" class="button">Sign up</button>
+        </form>
+      </section>
+
+      <section aria-labelledby="voices-heading">
+        <h2 id="voices-heading" class="section-heading">Voices from the community</h2>
+        <p class="section-intro">
+          Testimonials include descriptive attributions so you can compare them with the ambiguous links earlier on the page.
+        </p>
+        <div class="testimonial-grid">
+          <blockquote>
+            “Clear copy makes it easier for me to translate updates for my neighbors. Tools that flag vague headlines save me so
+            much time.”
+            <cite>— Priya Desai, volunteer interpreter</cite>
+          </blockquote>
+          <blockquote>
+            “I never realized how often our posts skipped alt text until I tried this extension. The rewrite prompts are the
+            perfect nudge.”
+            <cite>— Malik Owens, community manager</cite>
+          </blockquote>
+          <blockquote>
+            “The ability to audit only a selection lets me fix one section before publishing. It keeps our newsroom workflow fast
+            and accessible.”
+            <cite>— Clara Jiménez, assignment editor</cite>
+          </blockquote>
+        </div>
+      </section>
+
+      <section id="events" aria-labelledby="events-heading">
+        <h2 id="events-heading" class="section-heading">Upcoming events</h2>
+        <p class="section-intro">
+          The list below mixes precise and vague link text. Use the extension to refine phrases like “More info” into something
+          more descriptive.
+        </p>
+        <ul>
+          <li>
+            <strong>April 18:</strong> Mobility Task Force town hall at the West Loop library —
+            <a href="https://example.com/town-hall-details">Reserve a seat</a>
+          </li>
+          <li>
+            <strong>April 24:</strong> Emergency preparedness walk-through —
+            <a href="https://example.com/emergency-prep">More info</a>
+          </li>
+          <li>
+            <strong>May 2:</strong> Waterfront cleanup kickoff —
+            <a href="https://example.com/waterfront">Learn more</a>
+          </li>
+          <li>
+            <strong>May 9:</strong> Accessibility in the newsroom workshop —
+            <a href="https://example.com/accessibility-workshop">Register</a>
+          </li>
+        </ul>
+      </section>
+    </main>
+
+    <footer id="footer-links">
+      <p><strong>Need ideas?</strong> Run the extension on individual paragraphs to compare tone adjustments.</p>
+      <p>
+        Quick resources:
+        <a href="https://www.w3.org/WAI/tips/writing/">W3C writing tips for web accessibility</a>,
+        <a href="https://webaim.org/resources/contrastchecker/">WebAIM contrast checker</a>, and
+        <a href="https://developer.chrome.com/docs/ai">Chrome on-device AI documentation</a>.
+      </p>
+      <p style="margin: 0">© City Signal Live demo desk</p>
+    </footer>
+  </body>
+</html>
