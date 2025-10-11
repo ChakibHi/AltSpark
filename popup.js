@@ -17,6 +17,7 @@
     siteSection: document.getElementById("site-controls"),
     siteLabel: document.getElementById("site-label"),
     openSettings: document.getElementById("open-settings"),
+    capabilities: document.getElementById("popup-capabilities"),
     counters: {
       pending: document.getElementById("count-pending"),
       applied: document.getElementById("count-applied"),
@@ -89,6 +90,7 @@
         automationActive: Boolean(data.automationActive),
         automation: data.automation || { attempted: false, executed: false },
         auditDurationMs: Number(data.auditDurationMs),
+        localModels: data.localModels || null,
       };
       updateStatusStrip();
       updateFindingsState();
@@ -264,6 +266,62 @@
     const ms = Number(lastStatus?.auditDurationMs);
     const durationText = Number.isFinite(ms) && ms > 0 ? `Last audit: ${formatDuration(ms)}` : "Last audit: --";
     dom.auditDuration.textContent = durationText;
+    renderCapabilities(dom.capabilities, lastStatus?.localModels || null);
+  }
+
+  function renderCapabilities(container, data) {
+    if (!container) {
+      return;
+    }
+    container.innerHTML = "";
+    if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+      container.hidden = true;
+      container.removeAttribute("data-ready");
+      return;
+    }
+    container.hidden = false;
+    container.dataset.ready = data.ready ? "true" : "false";
+    const dot = document.createElement("span");
+    dot.className = `capabilities-dot ${data.ready ? "is-ready" : "is-partial"}`;
+    dot.setAttribute("aria-hidden", "true");
+    container.appendChild(dot);
+    const label = document.createElement("span");
+    label.className = "capabilities-label";
+    const requiredItems = data.items.filter((item) => item && item.required !== false);
+    const downloadingRequired = requiredItems.some((item) => item && item.status === "downloadable");
+    let labelText = "Offline Ready";
+    if (!data.ready) {
+      labelText = downloadingRequired ? "Preparing offline models" : "Offline models unavailable";
+    }
+    label.textContent = labelText;
+    container.appendChild(label);
+    data.items.forEach((item) => {
+      if (!item || typeof item.label !== "string") {
+        return;
+      }
+      const pill = document.createElement("span");
+      const statusClass = item.available
+        ? "is-ready"
+        : item.status === "downloadable"
+          ? "is-downloading"
+          : "is-missing";
+      pill.className = `capabilities-pill ${statusClass}`;
+      const statusText = item.available
+        ? "Ready"
+        : item.status === "downloadable"
+          ? "Downloading..."
+          : item.status || "Unavailable";
+      pill.title = `${item.label}: ${statusText}`;
+      const pillLabel = document.createElement("span");
+      pillLabel.className = "capabilities-pill__label";
+      pillLabel.textContent = item.label;
+      const pillIcon = document.createElement("span");
+      pillIcon.className = "capabilities-pill__icon";
+      pillIcon.textContent = item.available ? "✓" : item.status === "downloadable" ? "…" : "!";
+      pill.appendChild(pillLabel);
+      pill.appendChild(pillIcon);
+      container.appendChild(pill);
+    });
   }
 
   function updateFindingsState() {
@@ -437,6 +495,7 @@
     if (dom.siteLabel) {
       dom.siteLabel.textContent = "";
     }
+    renderCapabilities(dom.capabilities, null);
   }
 
   function configureActionButton(button, config) {

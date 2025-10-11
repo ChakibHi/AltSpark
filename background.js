@@ -18,6 +18,7 @@ const runningTabs = new Set();
 const tabIssueCounts = new Map();
 const tabAutomationState = new Map();
 const tabAuditDurations = new Map();
+const tabLocalModels = new Map();
 const autoTabs = new Map();
 const autoRetryTimers = new Map();
 const AUDIT_COMPLETION_REASONS = new Set(["manual", "auto"]);
@@ -268,6 +269,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabIssueCounts.delete(tabId);
   tabAutomationState.delete(tabId);
   tabAuditDurations.delete(tabId);
+  tabLocalModels.delete(tabId);
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -310,6 +312,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       tabAuditDurations.set(tabId, Number(message.state.lastAuditDuration));
     } else {
       tabAuditDurations.delete(tabId);
+    }
+    if (message.state?.localModels) {
+      tabLocalModels.set(tabId, message.state.localModels);
+    } else {
+      tabLocalModels.delete(tabId);
     }
     recordAuditTelemetry(tabId, message.state, message.reason);
     updateBadge(tabId);
@@ -530,6 +537,7 @@ async function handlePopupStatus(message, sendResponse) {
           executed: Boolean(automationInfo?.executed),
         },
         auditDurationMs: Number.isFinite(duration) ? duration : null,
+        localModels: tabLocalModels.get(tabId) || null,
       },
     });
   } catch (error) {
@@ -642,6 +650,7 @@ function clearTabState(tabId) {
   tabIssueCounts.delete(tabId);
   tabAutomationState.delete(tabId);
   tabAuditDurations.delete(tabId);
+  tabLocalModels.delete(tabId);
   updateBadge(tabId);
 }
 

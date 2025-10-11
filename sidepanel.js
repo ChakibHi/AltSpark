@@ -16,6 +16,7 @@ const dom = {
   exportMarkdown: document.getElementById('footer-export'),
   openPopup: document.getElementById('panel-open-popup'),
   message: document.getElementById('panel-message'),
+  capabilities: document.getElementById('panel-capabilities'),
   summary: {
     section: document.querySelector('.sidepanel-summary'),
     chips: Array.from(document.querySelectorAll('.summary-chip')),
@@ -232,9 +233,11 @@ function updateState(state, reason = "update") {
     updateButtons();
     updateProgress(null, false);
     updateFooterMeta(null);
+    updateCapabilities(null);
     return;
   }
   updateSummary(state);
+  updateCapabilities(state.localModels || null);
   updateProgress(state.progress, state.auditInProgress);
   renderIssues(state.issues || [], state.automation);
   updateButtons(state);
@@ -267,6 +270,62 @@ function updateState(state, reason = "update") {
   }
 }
 
+
+function updateCapabilities(data) {
+  const container = dom.capabilities;
+  if (!container) {
+    return;
+  }
+  container.innerHTML = '';
+  if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+    container.hidden = true;
+    container.removeAttribute('data-ready');
+    return;
+  }
+  container.hidden = false;
+  container.dataset.ready = data.ready ? 'true' : 'false';
+  const dot = document.createElement('span');
+  dot.className = `capabilities-dot ${data.ready ? 'is-ready' : 'is-partial'}`;
+  dot.setAttribute('aria-hidden', 'true');
+  container.appendChild(dot);
+  const label = document.createElement('span');
+  label.className = 'capabilities-label';
+  const requiredItems = data.items.filter((item) => item && item.required !== false);
+  const downloadingRequired = requiredItems.some((item) => item && item.status === 'downloadable');
+  let labelText = 'Offline Ready';
+  if (!data.ready) {
+    labelText = downloadingRequired ? 'Preparing offline models' : 'Offline models unavailable';
+  }
+  label.textContent = labelText;
+  container.appendChild(label);
+  for (const item of data.items) {
+    if (!item || typeof item.label !== 'string') {
+      continue;
+    }
+    const pill = document.createElement('span');
+    const statusClass = item.available
+      ? 'is-ready'
+      : item.status === 'downloadable'
+        ? 'is-downloading'
+        : 'is-missing';
+    pill.className = `capabilities-pill ${statusClass}`;
+    const statusText = item.available
+      ? 'Ready'
+      : item.status === 'downloadable'
+        ? 'Downloading...'
+        : item.status || 'Unavailable';
+    pill.title = `${item.label}: ${statusText}`;
+    const pillLabel = document.createElement('span');
+    pillLabel.className = 'capabilities-pill__label';
+    pillLabel.textContent = item.label;
+    const pillIcon = document.createElement('span');
+    pillIcon.className = 'capabilities-pill__icon';
+    pillIcon.textContent = item.available ? '✓' : item.status === 'downloadable' ? '…' : '!';
+    pill.appendChild(pillLabel);
+    pill.appendChild(pillIcon);
+    container.appendChild(pill);
+  }
+}
 
 function updateSummary(state) {
   const summary = dom.summary;

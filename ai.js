@@ -3,6 +3,122 @@ const DEFAULT_CHUNK_LIMIT = 9000;
 const MIN_CHUNK_LIMIT = 1800;
 const DEBUG_AI_LOGGING = false;
 const ENABLE_EXTENDED_REWRITE_MODELS = false;
+const MODEL_STATUS_TTL_MS = 15_000;
+
+function getPrimaryLanguage() {
+  try {
+    const raw = typeof navigator?.language === "string" ? navigator.language : "en";
+    const primary = raw.split(/[-_]/)[0];
+    return primary || "en";
+  } catch (_error) {
+    return "en";
+  }
+}
+
+function getSecondaryLanguage(primary) {
+  try {
+    const fallbackList = Array.isArray(navigator?.languages) && navigator.languages.length
+      ? navigator.languages
+      : [navigator?.language || 'en', 'en', 'es', 'fr'];
+    for (const candidate of fallbackList) {
+      if (typeof candidate !== 'string') {
+        continue;
+      }
+      const normalized = candidate.split(/[-_]/)[0]?.trim();
+      if (normalized && normalized !== primary) {
+        return normalized;
+      }
+    }
+  } catch (_error) {
+    // ignore
+  }
+  return primary === 'en' ? 'es' : 'en';
+}
+
+const LOCAL_MODEL_SPECS = [
+  {
+    id: "summarizer",
+    label: "Summarizer",
+    required: true,
+    ctor: () => (typeof self !== "undefined" ? self.Summarizer : undefined),
+    options: () => ({
+      type: "key-points",
+      outputLanguage: getPrimaryLanguage(),
+    }),
+  },
+  {
+    id: "translator",
+    label: "Translator",
+    required: true,
+    ctor: () => (typeof self !== "undefined" ? self.Translator : undefined),
+    options: () => {
+      const target = getPrimaryLanguage();
+      const source = getSecondaryLanguage(target);
+      return {
+        sourceLanguage: source,
+        targetLanguage: target,
+      };
+    },
+  },
+  {
+    id: "writer",
+    label: "Writer",
+    required: false,
+    ctor: () => (typeof self !== "undefined" ? self.Writer : undefined),
+    options: () => ({
+      tone: "neutral",
+      format: "plain-text",
+    }),
+  },
+  {
+    id: "rewriter",
+    label: "Rewriter",
+    required: true,
+    ctor: () => (typeof self !== "undefined" ? self.Rewriter : undefined),
+    options: () => ({
+      tone: "as-is",
+      format: "plain-text",
+      length: "as-is",
+    }),
+  },
+  {
+    id: "language-detector",
+    label: "Language Detector",
+    required: false,
+    ctor: () => (typeof self !== "undefined" ? self.LanguageDetector : undefined),
+    options: () => {
+      try {
+        const languages = Array.isArray(navigator?.languages) && navigator.languages.length
+          ? navigator.languages
+          : [navigator?.language || "en"];
+        const normalized = [];
+        for (const entry of languages) {
+          if (typeof entry !== "string") {
+            continue;
+          }
+          const primary = entry.split(/[-_]/)[0]?.trim();
+          if (primary && !normalized.includes(primary) && normalized.length < 4) {
+            normalized.push(primary);
+          }
+        }
+        return normalized.length ? { expectedInputLanguages: normalized } : undefined;
+      } catch (_error) {
+        return undefined;
+      }
+    },
+  },
+  {
+    id: "language-model",
+    label: "Language Model",
+    required: false,
+    ctor: () => (typeof self !== "undefined" ? self.LanguageModel : undefined),
+    options: () => ({
+      expectedOutputs: [
+        { type: "text", languages: [getPrimaryLanguage()] },
+      ],
+    }),
+  },
+];
 
 const OFFSCREEN_MESSAGE_TYPES = {
   ensure: "a11y-copy-helper:ensure-offscreen",
@@ -184,6 +300,8 @@ export class AIClient {
       ready: false,
       preparing: null,
     };
+    this.localModelStatus = null;
+    this.localModelStatusFetchedAt = 0;
   }
 
   // Allow callers to subscribe to downloadprogress events from any model
@@ -319,6 +437,50 @@ export class AIClient {
       return null;
     }
     return null;
+  }
+
+  async getLocalModelStatus(force = false) {
+    const now = Date.now();
+    if (!force && this.localModelStatus && now - this.localModelStatusFetchedAt < MODEL_STATUS_TTL_MS) {
+      return this.localModelStatus;
+    }
+    const items = [];
+    for (const spec of LOCAL_MODEL_SPECS) {
+      try {
+        const ctor = typeof spec.ctor === "function" ? spec.ctor() : spec.ctor;
+        const options = typeof spec.options === "function" ? spec.options() : spec.options;
+        const availability = await guardedAvailability(ctor, options);
+        const status = availability?.status || "unknown";
+        const available = !isUnavailable(status);
+        items.push({
+          id: spec.id,
+          label: spec.label,
+          status,
+          available,
+          required: spec.required !== false,
+        });
+      } catch (error) {
+        console.warn(`[AltSpark] Model status check failed for ${spec.id}`, error);
+        items.push({
+          id: spec.id,
+          label: spec.label,
+          status: "unknown",
+          available: false,
+          required: spec.required !== false,
+        });
+      }
+    }
+    const ready = items
+      .filter((item) => item.required !== false)
+      .every((item) => item.available);
+    const status = {
+      ready,
+      items,
+      checkedAt: now,
+    };
+    this.localModelStatus = status;
+    this.localModelStatusFetchedAt = now;
+    return status;
   }
 
   async ensureModel(key, ctor, options = {}) {
