@@ -233,6 +233,7 @@ function updateState(state, reason = "update") {
     updateButtons();
     updateProgress(null, false);
     updateFooterMeta(null);
+    updateAuditDuration(null);
     updateCapabilities(null);
     return;
   }
@@ -242,6 +243,7 @@ function updateState(state, reason = "update") {
   renderIssues(state.issues || [], state.automation);
   updateButtons(state);
   updateFooterMeta(state.counts);
+  updateAuditDuration(state.lastAuditDuration);
   const activation = state.activation || null;
   if (activation?.required) {
     const message = activation.hasUserActivation
@@ -558,6 +560,14 @@ function updateFooterMeta(rawCounts) {
   const applied = clampToNonNegativeInt(rawCounts?.applied);
   const reverted = clampToNonNegativeInt(rawCounts?.ignored);
   dom.footerMeta.textContent = `${formatNumber(applied)} applied | ${formatNumber(reverted)} reverted`;
+}
+
+function updateAuditDuration(ms) {
+  if (!dom.auditDuration) {
+    return;
+  }
+  const label = formatDuration(ms);
+  dom.auditDuration.textContent = `Last audit: ${label}`;
 }
 
 function formatNumber(value) {
