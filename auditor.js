@@ -504,7 +504,8 @@ export class Auditor {
         _apply: () => {
           const prevAlt = img.getAttribute("alt");
           const prevHidden = img.getAttribute("aria-hidden");
-          img.setAttribute("alt", suggestion);
+          const nextAlt = (translated || suggestion || "").trim();
+          img.setAttribute("alt", nextAlt);
           img.removeAttribute("aria-hidden");
           return () => {
             if (prevAlt === null) {
