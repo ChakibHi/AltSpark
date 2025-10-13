@@ -118,7 +118,7 @@
           <fieldset>
             <legend>Automation</legend>
             <label class="toggle">
-              <input type="checkbox" name="autoApplySafe" />
+              <input type="checkbox" name="autoModeEnabled" />
               <span>Auto-apply safe fixes across pages</span>
             </label>
             <label class="toggle">
@@ -126,6 +126,25 @@
               <span>Power saver mode (pause auto-audits)</span>
             </label>
             <p class="settings-hint">Settings save automatically for all tabs.</p>
+          </fieldset>
+          <fieldset class="site-exclusion-block">
+            <legend>Auto-mode exclusions</legend>
+            <p class="settings-hint site-exclusion__hint">
+              Auto-mode skips these domains so fixes stay manual. Add the root domain (for example, <code>example.com</code>) to keep continuous scanning off there.
+            </p>
+            <div id="site-exclusion-form" class="site-exclusion-form" role="group" aria-label="Manage auto-mode exclusions">
+              <input
+                type="text"
+                id="site-exclusion-input"
+                name="siteExclusion"
+                placeholder="Add domain e.g. example.com"
+                autocomplete="off"
+                inputmode="url"
+                aria-label="Domain to exclude"
+              />
+              <button id="site-exclusion-add" type="button" class="secondary">Add</button>
+            </div>
+            <ul id="site-exclusion-list" class="site-exclusion-list" aria-live="polite"></ul>
           </fieldset>
         </form>
       </section>

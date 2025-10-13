@@ -1,5 +1,6 @@
 import { clampToNonNegativeInt } from "./counts.js";
 import { truncateText } from "./dom-utils.js";
+import { getIcon } from "./icons.js";
 
 const dom = {
   container: document.querySelector('.sidepanel-container'),
@@ -33,10 +34,23 @@ const dom = {
   footerMeta: document.getElementById('footer-meta'),
   announcer: document.getElementById('panel-announcer'),
   settingsForm: document.getElementById('settings-form'),
+  siteExclusionForm: document.getElementById('site-exclusion-form'),
+  siteExclusionInput: document.getElementById('site-exclusion-input'),
+  siteExclusionAddButton: document.getElementById('site-exclusion-add'),
+  siteExclusionList: document.getElementById('site-exclusion-list'),
 };
 
 const CONNECTION_ERROR_FRAGMENT = "receiving end does not exist";
 const CONTENT_UNAVAILABLE_FRAGMENT = "content script unavailable";
+const SITE_PREFS_STORAGE_KEY = "a11yCopyHelperSitePrefs";
+const ICON_MARKUP = {
+  apply: getIcon("shieldCheck"),
+  undo: getIcon("rotateCcw"),
+  revert: getIcon("history"),
+  export: getIcon("fileDown"),
+  scan: getIcon("scan"),
+  add: getIcon("plus"),
+};
 
 let currentTabId = null;
 let currentPageUrl = null;
@@ -54,6 +68,7 @@ let settingsWatcherDisposer = null;
 let baseMessageState = { text: "", tone: "" };
 let overrideMessageState = null;
 let currentFilter = 'all';
+let sitePrefsChangeListener = null;
 
 initialize().catch((error) => {
   console.error('[AltSpark] Failed to initialize side panel', error);
@@ -63,7 +78,8 @@ initialize().catch((error) => {
 async function initialize() {
   bindEventListeners();
   switchView('findings');
-  await Promise.all([refreshTabContext(), loadSettingsView()]);
+  decorateButtonsWithIcons();
+  await Promise.all([refreshTabContext(), loadSettingsView(), loadSiteExclusions()]);
   await loadState();
   if (currentTabId != null) {
     notifyVisibility(true, currentTabId);
@@ -73,6 +89,12 @@ async function initialize() {
     currentSettings = settings;
     applySettingsToForm(dom.settingsForm, settings);
   });
+  sitePrefsChangeListener = (changes) => {
+    if (changes && changes[SITE_PREFS_STORAGE_KEY]) {
+      loadSiteExclusions().catch((error) => console.error('[AltSpark] Failed to refresh site exclusions', error));
+    }
+  };
+  chrome.storage.onChanged.addListener(sitePrefsChangeListener);
   chrome.runtime.onMessage.addListener(handleRuntimeMessage);
   window.addEventListener('beforeunload', handleBeforeUnload, { once: true });
 }
@@ -111,6 +133,17 @@ function bindEventListeners() {
   });
 
   dom.settingsForm?.addEventListener('change', handleSettingsChange);
+  dom.siteExclusionAddButton?.addEventListener('click', () => handleSiteExclusionSubmit());
+  dom.siteExclusionList?.addEventListener('click', handleSiteExclusionListClick);
+  dom.siteExclusionInput?.addEventListener('input', () => {
+    dom.siteExclusionInput.setCustomValidity('');
+  });
+  dom.siteExclusionInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      handleSiteExclusionSubmit();
+    }
+  });
 
   tabActivatedListener = () => {
     refreshTabContext()
@@ -125,6 +158,17 @@ function bindEventListeners() {
     }
   };
   chrome.tabs.onUpdated.addListener(tabUpdatedListener);
+}
+
+function decorateButtonsWithIcons() {
+  initializeButtonIcon(dom.applySafe, 'apply');
+  initializeButtonIcon(dom.footerApplyAll, 'apply');
+  initializeButtonIcon(dom.undo, 'undo');
+  initializeButtonIcon(dom.revertAll, 'revert');
+  initializeButtonIcon(dom.footerRevertAll, 'revert');
+  initializeButtonIcon(dom.exportMarkdown, 'export');
+  initializeButtonIcon(dom.runAudit, 'scan');
+  initializeButtonIcon(dom.siteExclusionAddButton, 'add');
 }
 
 async function refreshTabContext() {
@@ -988,6 +1032,10 @@ function handleBeforeUnload() {
     settingsWatcherDisposer();
     settingsWatcherDisposer = null;
   }
+  if (sitePrefsChangeListener) {
+    chrome.storage.onChanged.removeListener(sitePrefsChangeListener);
+    sitePrefsChangeListener = null;
+  }
   chrome.runtime.onMessage.removeListener(handleRuntimeMessage);
   notifyVisibility(false, currentTabId);
 }
@@ -1100,7 +1148,7 @@ function applySettingsToForm(form, settings) {
     ['auditHeadings', Boolean(settings.auditHeadings)],
     ['preferAriaLabel', Boolean(settings.preferAriaLabel)],
     ['offerTranslations', Boolean(settings.offerTranslations)],
-    ['autoApplySafe', Boolean(settings.autoApplySafe)],
+    ['autoModeEnabled', Boolean(settings.autoModeEnabled)],
     ['powerSaverMode', Boolean(settings.powerSaverMode)],
   ];
   for (const [name, value] of map) {
@@ -1131,10 +1179,209 @@ function readSettingsFromForm(form) {
     auditHeadings: readCheckbox('auditHeadings'),
     preferAriaLabel: readCheckbox('preferAriaLabel'),
     offerTranslations: readCheckbox('offerTranslations'),
-    autoApplySafe: readCheckbox('autoApplySafe'),
+    autoModeEnabled: readCheckbox('autoModeEnabled'),
     powerSaverMode: readCheckbox('powerSaverMode'),
     userLanguage,
   };
+}
+
+async function loadSiteExclusions() {
+  if (!dom.siteExclusionList) {
+    return;
+  }
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'a11y-copy-helper:list-site-prefs' });
+    if (!response?.ok) {
+      throw new Error(response?.error || 'Unable to load site preferences');
+    }
+    const entries = Array.isArray(response.sites) ? response.sites : [];
+    renderSiteExclusionList(entries);
+  } catch (error) {
+    console.error('[AltSpark] Failed to load site exclusions', error);
+    renderSiteExclusionList([]);
+  }
+}
+
+function renderSiteExclusionList(entries) {
+  const list = dom.siteExclusionList;
+  if (!list) {
+    return;
+  }
+  list.textContent = '';
+  const filtered = entries.filter((entry) => entry && entry.neverAuto);
+  if (!filtered.length) {
+    const empty = document.createElement('li');
+    empty.className = 'site-exclusion-list__empty';
+    empty.textContent = 'Auto-mode monitors all sites. Add a domain to skip continuous fixes.';
+    list.appendChild(empty);
+    return;
+  }
+  for (const entry of filtered) {
+    const item = document.createElement('li');
+    item.className = 'site-exclusion-list__item';
+    item.dataset.host = entry.host;
+
+    const hostLabel = document.createElement('span');
+    hostLabel.className = 'site-exclusion-list__host';
+    hostLabel.textContent = entry.host;
+
+    const actions = document.createElement('div');
+    actions.className = 'site-exclusion-list__actions';
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'ghost site-exclusion-list__remove';
+    removeButton.dataset.removeSite = entry.host;
+    removeButton.textContent = 'Remove';
+    removeButton.setAttribute('aria-label', `Remove ${entry.host} from auto-mode exclusions`);
+
+    actions.appendChild(removeButton);
+    item.append(hostLabel, actions);
+    list.appendChild(item);
+  }
+}
+
+async function handleSiteExclusionSubmit() {
+  const input = dom.siteExclusionInput;
+  if (!input) {
+    return;
+  }
+  const addButton = dom.siteExclusionAddButton;
+  input.setCustomValidity('');
+  const normalized = normalizeSiteInput(input.value);
+  if (!normalized) {
+    input.setCustomValidity('Enter a valid domain (e.g. example.com)');
+    input.reportValidity();
+    return;
+  }
+  if (addButton) {
+    addButton.disabled = true;
+  }
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'a11y-copy-helper:update-site-pref',
+      hostname: normalized,
+      neverAuto: true,
+    });
+    if (!response?.ok) {
+      throw new Error(response?.error || 'Unable to add exclusion');
+    }
+    input.value = '';
+    await loadSiteExclusions();
+  } catch (error) {
+    console.error('[AltSpark] Failed to add site exclusion', error);
+    input.setCustomValidity(error?.message || 'Unable to add this domain');
+    input.reportValidity();
+    setTimeout(() => {
+      if (dom.siteExclusionInput) {
+        dom.siteExclusionInput.setCustomValidity('');
+      }
+    }, 2500);
+  } finally {
+    if (addButton) {
+      addButton.disabled = false;
+    }
+  }
+}
+
+async function handleSiteExclusionListClick(event) {
+  const target = event?.target;
+  if (!target) {
+    return;
+  }
+  const button = target.closest('[data-remove-site]');
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+  const host = button.dataset.removeSite;
+  if (!host) {
+    return;
+  }
+  button.disabled = true;
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'a11y-copy-helper:update-site-pref',
+      hostname: host,
+      neverAuto: false,
+    });
+    if (!response?.ok) {
+      throw new Error(response?.error || 'Unable to remove exclusion');
+    }
+    await loadSiteExclusions();
+  } catch (error) {
+    console.error('[AltSpark] Failed to remove site exclusion', error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function normalizeSiteInput(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  let input = value.trim();
+  if (!input) {
+    return null;
+  }
+  try {
+    if (/^[a-zA-Z]+:\/\//.test(input)) {
+      input = new URL(input).hostname;
+    }
+  } catch (_error) {
+    // ignore invalid URL format and continue with raw input
+  }
+  input = input.replace(/^https?:\/\//, '');
+  const slashIndex = input.indexOf('/');
+  if (slashIndex >= 0) {
+    input = input.slice(0, slashIndex);
+  }
+  input = input.replace(/:\d+$/, '');
+  input = input.trim().toLowerCase();
+  if (input.startsWith('www.')) {
+    input = input.slice(4);
+  }
+  if (!input || /[^a-z0-9.-]/.test(input) || input.includes(' ')) {
+    return null;
+  }
+  if (!input.includes('.') && input !== 'localhost') {
+    return null;
+  }
+  return input;
+}
+
+function setButtonContent(button, label, iconKey) {
+  if (!button) {
+    return;
+  }
+  const iconMarkup = iconKey ? ICON_MARKUP[iconKey] : "";
+  if (iconMarkup) {
+    button.classList.add('has-icon');
+    let iconSpan = button.querySelector('.button-icon');
+    let labelSpan = button.querySelector('.button-label');
+    if (!iconSpan || !labelSpan) {
+      button.textContent = '';
+      iconSpan = document.createElement('span');
+      iconSpan.className = 'button-icon';
+      iconSpan.setAttribute('aria-hidden', 'true');
+      labelSpan = document.createElement('span');
+      labelSpan.className = 'button-label';
+      button.append(iconSpan, labelSpan);
+    }
+    iconSpan.innerHTML = iconMarkup;
+    labelSpan.textContent = label;
+  } else {
+    button.classList.remove('has-icon');
+    button.textContent = label;
+  }
+}
+
+function initializeButtonIcon(button, iconKey, labelOverride) {
+  if (!button || !iconKey) {
+    return;
+  }
+  const label = labelOverride ?? (button.textContent || '').trim();
+  button.dataset.iconKey = iconKey;
+  setButtonContent(button, label, iconKey);
 }
 
 function copyToClipboard(text) {

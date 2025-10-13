@@ -17,8 +17,8 @@
         </div>
       </header>
 
-      <section class="popup-status-strip" aria-label="Autopilot status">
-        <span id="autopilot-status" class="status-pill">Autopilot: --</span>
+      <section class="popup-status-strip" aria-label="Auto-mode status">
+        <span id="autopilot-status" class="status-pill">Auto-mode: --</span>
         <span class="status-strip__divider" aria-hidden="true">&bull;</span>
         <span id="audit-duration" class="status-duration" title="Time to scan and apply safe fixes.">Last audit: --</span>
       </section>
@@ -56,11 +56,25 @@
       <!-- Keep site-level controls out of the popup for a simpler basic UI.
            They remain available in the side panel settings view. -->
 
+      <section id="auto-mode-education" class="popup-education" hidden aria-live="polite">
+        <p class="popup-education__copy">
+          <strong>Auto-mode</strong> keeps copy accessible automatically on every page. Enable it to let AltSpark monitor tabs in the background.
+        </p>
+        <div class="popup-education__actions">
+          <button id="auto-mode-education-enable" type="button" class="primary">Enable Auto-mode</button>
+          <button id="auto-mode-education-dismiss" type="button" class="ghost">Maybe later</button>
+        </div>
+      </section>
+
       <section class="popup-section" aria-label="Global controls">
-        <h2 class="section-title">Autopilot</h2>
+        <h2 class="section-title">Auto-mode</h2>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-auto-mode" />
+          <span>Enable Auto-mode (continuous fixes)</span>
+        </label>
         <label class="toggle">
           <input type="checkbox" id="toggle-autopilot" />
-          <span>Pause Autopilot (all sites)</span>
+          <span>Pause Auto-mode (all sites)</span>
         </label>
         <button id="open-settings" type="button" class="ghost">Settings…</button>
       </section>

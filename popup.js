@@ -1,15 +1,21 @@
+import { getIcon } from "./icons.js";
+
 (async () => {
   const storage = await import(chrome.runtime.getURL("storage.js"));
   const { clampToNonNegativeInt, normalizeCountMap } = await import(chrome.runtime.getURL("counts.js"));
 
   const dom = {
     message: document.getElementById("status-message"),
-    autopilotStatus: document.getElementById("autopilot-status"),
+    autoModeStatus: document.getElementById("autopilot-status"),
     auditDuration: document.getElementById("audit-duration"),
     findingsState: document.getElementById("findings-state"),
     primaryAction: document.getElementById("primary-action"),
     secondaryAction: document.getElementById("secondary-action"),
     openPanel: document.getElementById("open-panel"),
+    autoModeEducation: document.getElementById("auto-mode-education"),
+    autoModeEducationEnable: document.getElementById("auto-mode-education-enable"),
+    autoModeEducationDismiss: document.getElementById("auto-mode-education-dismiss"),
+    toggleAutoMode: document.getElementById("toggle-auto-mode"),
     toggleAutopilot: document.getElementById("toggle-autopilot"),
     // Site-level controls moved to side panel for a simpler popup.
     toggleSiteAuto: document.getElementById("toggle-site-auto"),
@@ -26,11 +32,21 @@
 
   const DEFAULT_COUNTS = { total: 0, applied: 0, ignored: 0, autoApplied: 0, pending: 0 };
   const DEFAULT_METRICS = { lifetimeFindings: 0, lifetimeApplied: 0, lifetimeAutoApplied: 0, lifetimeIgnored: 0 };
+  const AUTO_MODE_NUDGE_KEY = "a11yCopyHelperAutoModeNudge";
+  const ICON_MARKUP = {
+    quickFix: getIcon("wand"),
+    scan: getIcon("scan"),
+    openPanel: getIcon("panelRight"),
+    autoMode: getIcon("sparkles"),
+  };
 
   let lastStatus = null;
   let refreshing = false;
+  let autoModeNudgeDismissed = false;
 
+  await loadAutoModeNudgeState();
   attachEventListeners();
+  decorateStaticButtons();
   await refreshStatus();
 
   function attachEventListeners() {
@@ -43,6 +59,34 @@
           console.warn("[AltSpark] Failed to open side panel", error);
           setStatusMessage(error?.message || "Unable to open side panel", "error");
         });
+    });
+
+    dom.autoModeEducationEnable?.addEventListener("click", async () => {
+      await markAutoModeNudgeDismissed();
+      updateAutoModeEducation();
+      await updateGlobalSetting({ autoModeEnabled: true, autoApplyPaused: false });
+    });
+
+    dom.autoModeEducationDismiss?.addEventListener("click", async () => {
+      await markAutoModeNudgeDismissed();
+      updateAutoModeEducation();
+    });
+
+    dom.toggleAutoMode?.addEventListener("change", () => {
+      if (!lastStatus) {
+        dom.toggleAutoMode.checked = false;
+        return;
+      }
+      const enabled = Boolean(dom.toggleAutoMode.checked);
+      const partial = { autoModeEnabled: enabled };
+      if (enabled && lastStatus?.settings?.autoApplyPaused) {
+        partial.autoApplyPaused = false;
+      }
+      if (enabled) {
+        markAutoModeNudgeDismissed().catch(() => {});
+      }
+      updateAutoModeEducation();
+      updateGlobalSetting(partial);
     });
 
     dom.toggleAutopilot?.addEventListener("change", () => {
@@ -64,6 +108,11 @@
           setStatusMessage(error?.message || "Unable to open settings", "error");
         });
     });
+  }
+
+  function decorateStaticButtons() {
+    initializeButtonIcon(dom.openPanel, "openPanel");
+    initializeButtonIcon(dom.autoModeEducationEnable, "autoMode");
   }
 
   async function refreshStatus() {
@@ -98,11 +147,13 @@
       updateCounters();
       // Site controls are intentionally hidden to keep popup minimal.
       updateMessage();
+      updateAutoModeEducation();
     } catch (error) {
       console.error("[AltSpark] Failed to load popup status", error);
       lastStatus = null;
       resetUiToDefaults();
       setStatusMessage(error?.message || "Unable to read active tab", "error");
+      updateAutoModeEducation();
     } finally {
       refreshing = false;
       toggleInputs(false);
@@ -134,7 +185,7 @@
     if (!button || !lastStatus?.tabId) {
       return;
     }
-    const previousLabel = button.textContent;
+    const previousLabel = getButtonLabel(button);
     button.dataset.loading = "true";
     button.disabled = true;
     setStatusMessage("Applying safe fixes…", "info");
@@ -153,7 +204,7 @@
       setStatusMessage(error?.message || "Quick fix failed", "error");
     } finally {
       delete button.dataset.loading;
-      button.textContent = previousLabel;
+      setButtonLabel(button, previousLabel);
       button.disabled = false;
       try { await refreshStatus(); } catch (_) {}
     }
@@ -225,10 +276,10 @@
     if (!button || !lastStatus?.tabId) {
       return;
     }
-    const previousLabel = button.textContent;
+    const previousLabel = getButtonLabel(button);
     button.dataset.loading = "true";
     button.disabled = true;
-    button.textContent = "Scanning...";
+    setButtonLabel(button, "Scanning...");
     try {
       const response = await chrome.runtime.sendMessage({
         type: "a11y-copy-helper:popup-audit",
@@ -244,23 +295,23 @@
       setStatusMessage(error?.message || "Unable to start scan", "error");
     } finally {
       button.dataset.loading = "false";
-      button.textContent = previousLabel;
+      setButtonLabel(button, previousLabel);
       button.disabled = false;
     }
   }
 
   function updateStatusStrip() {
-    if (!dom.autopilotStatus || !dom.auditDuration) {
+    if (!dom.autoModeStatus || !dom.auditDuration) {
       return;
     }
     const settings = lastStatus?.settings || {};
-    const autopilotState = determineAutopilotState(settings);
-    dom.autopilotStatus.textContent = `Autopilot: ${autopilotState.label}`;
-    dom.autopilotStatus.dataset.tone = autopilotState.tone;
-    if (autopilotState.title) {
-      dom.autopilotStatus.title = autopilotState.title;
+    const autoModeState = determineAutoModeState(settings);
+    dom.autoModeStatus.textContent = `Auto-mode: ${autoModeState.label}`;
+    dom.autoModeStatus.dataset.tone = autoModeState.tone;
+    if (autoModeState.title) {
+      dom.autoModeStatus.title = autoModeState.title;
     } else {
-      dom.autopilotStatus.removeAttribute("title");
+      dom.autoModeStatus.removeAttribute("title");
     }
 
     const ms = Number(lastStatus?.auditDurationMs);
@@ -346,8 +397,8 @@
 
   function updateActions() {
     // Keep popup actions simple and predictable.
-    configureActionButton(dom.primaryAction, { action: "quick-fix", label: "Quick Fix" });
-    configureActionButton(dom.secondaryAction, { action: "scan", label: "Scan" });
+    configureActionButton(dom.primaryAction, { action: "quick-fix", label: "Quick Fix", icon: "quickFix" });
+    configureActionButton(dom.secondaryAction, { action: "scan", label: "Scan", icon: "scan" });
   }
 
   function updateCounters() {
@@ -372,19 +423,19 @@
     }
     const { settings = {}, sitePreference = {}, automationActive, automation = {} } = lastStatus;
     if (settings.extensionPaused) {
-      setStatusMessage("Extension is paused. Resume Autopilot in Settings.", "warning");
+      setStatusMessage("Extension is paused. Resume Auto-mode in Settings.", "warning");
       return;
     }
     if (settings.powerSaverMode) {
       setStatusMessage("Power saver is on. Scans run on significant changes.", "info");
       return;
     }
-    if (!settings.autoApplySafe) {
-      setStatusMessage("Autopilot is off in Settings.", "info");
+    if (!settings.autoModeEnabled) {
+      setStatusMessage("Auto-mode is off in Settings.", "info");
       return;
     }
     if (settings.autoApplyPaused) {
-      setStatusMessage("Autopilot is paused across all sites.", "info");
+      setStatusMessage("Auto-mode is paused across all sites.", "info");
       return;
     }
     if (sitePreference.paused) {
@@ -392,7 +443,7 @@
       return;
     }
     if (sitePreference.neverAuto) {
-      setStatusMessage("Autopilot is disabled for this site.", "info");
+      setStatusMessage("Auto-mode is disabled for this site.", "info");
       return;
     }
     if (automation.executed) {
@@ -400,18 +451,18 @@
       const durationText = formatDuration(lastStatus?.auditDurationMs);
       const issueLabel = appliedCount === 1 ? "fix" : "fixes";
       const prefix = appliedCount > 0
-        ? `Autopilot applied ${formatNumber(appliedCount)} ${issueLabel}`
-        : "Autopilot applied safe fixes";
+        ? `Auto-mode applied ${formatNumber(appliedCount)} ${issueLabel}`
+        : "Auto-mode applied safe fixes";
       const suffix = durationText !== "--" ? ` in ${durationText}` : "";
       setStatusMessage(`${prefix}${suffix}.`, "success");
       return;
     }
-    if (settings.autoApplySafe && automation.attempted && !automation.executed) {
+    if (settings.autoModeEnabled && automation.attempted && !automation.executed) {
       setStatusMessage("Waiting for a page interaction to finish setup.", "info");
       return;
     }
     if (automationActive) {
-      setStatusMessage("Autopilot is monitoring this tab.", "success");
+      setStatusMessage("Auto-mode is monitoring this tab.", "success");
       return;
     }
     setStatusMessage("Ready when you are.", "info");
@@ -422,9 +473,14 @@
     const settings = lastStatus?.settings || {};
     const sitePref = lastStatus?.sitePreference || {};
 
+    if (dom.toggleAutoMode) {
+      dom.toggleAutoMode.checked = Boolean(settings.autoModeEnabled);
+      dom.toggleAutoMode.disabled = !hasStatus;
+    }
+
     if (dom.toggleAutopilot) {
       dom.toggleAutopilot.checked = Boolean(settings.autoApplyPaused);
-      const enabled = Boolean(settings.autoApplySafe);
+      const enabled = Boolean(settings.autoModeEnabled);
       const disabled = !hasStatus || !enabled || Boolean(settings.extensionPaused) || Boolean(settings.powerSaverMode);
       dom.toggleAutopilot.disabled = disabled;
     }
@@ -461,7 +517,10 @@
     const controls = [
       dom.primaryAction,
       dom.secondaryAction,
+      dom.toggleAutoMode,
       dom.toggleAutopilot,
+      dom.autoModeEducationEnable,
+      dom.autoModeEducationDismiss,
       dom.toggleSiteAuto,
       dom.toggleSitePause,
       dom.openSettings,
@@ -475,10 +534,10 @@
   }
 
   function resetUiToDefaults() {
-    if (dom.autopilotStatus) {
-      dom.autopilotStatus.textContent = "Autopilot: --";
-      dom.autopilotStatus.dataset.tone = "neutral";
-      dom.autopilotStatus.removeAttribute("title");
+    if (dom.autoModeStatus) {
+      dom.autoModeStatus.textContent = "Auto-mode: --";
+      dom.autoModeStatus.dataset.tone = "neutral";
+      dom.autoModeStatus.removeAttribute("title");
     }
     if (dom.auditDuration) {
       dom.auditDuration.textContent = "Last audit: --";
@@ -487,13 +546,20 @@
       dom.findingsState.textContent = "Scan needed";
       dom.findingsState.dataset.tone = "neutral";
     }
-    configureActionButton(dom.primaryAction, { action: "quick-fix", label: "Quick Fix" });
-    configureActionButton(dom.secondaryAction, { action: "scan", label: "Scan" });
+    configureActionButton(dom.primaryAction, { action: "quick-fix", label: "Quick Fix", icon: "quickFix" });
+    configureActionButton(dom.secondaryAction, { action: "scan", label: "Scan", icon: "scan" });
     if (dom.siteSection) {
       dom.siteSection.hidden = true;
     }
     if (dom.siteLabel) {
       dom.siteLabel.textContent = "";
+    }
+    if (dom.toggleAutoMode) {
+      dom.toggleAutoMode.checked = false;
+    }
+    if (dom.autoModeEducation) {
+      dom.autoModeEducation.hidden = true;
+      dom.autoModeEducation.removeAttribute("data-visible");
     }
     renderCapabilities(dom.capabilities, null);
   }
@@ -503,18 +569,73 @@
       return;
     }
     button.dataset.action = config.action;
-    button.textContent = config.label;
+    button.dataset.iconKey = config.icon || "";
+    setButtonContent(button, config.label, button.dataset.iconKey);
   }
 
-  function determineAutopilotState(settings = {}) {
+  function setButtonLabel(button, label) {
+    if (!button) {
+      return;
+    }
+    const iconKey = button.dataset?.iconKey || "";
+    setButtonContent(button, label, iconKey);
+  }
+
+  function getButtonLabel(button) {
+    if (!button) {
+      return "";
+    }
+    const labelSpan = button.querySelector(".button-label");
+    if (labelSpan) {
+      return labelSpan.textContent || "";
+    }
+    return button.textContent || "";
+  }
+
+  function setButtonContent(button, label, iconKey) {
+    if (!button) {
+      return;
+    }
+    const iconMarkup = iconKey ? ICON_MARKUP[iconKey] : "";
+    if (iconMarkup) {
+      button.classList.add("has-icon");
+      let iconSpan = button.querySelector(".button-icon");
+      let labelSpan = button.querySelector(".button-label");
+      if (!iconSpan || !labelSpan) {
+        button.textContent = "";
+        iconSpan = document.createElement("span");
+        iconSpan.className = "button-icon";
+        iconSpan.setAttribute("aria-hidden", "true");
+        labelSpan = document.createElement("span");
+        labelSpan.className = "button-label";
+        button.append(iconSpan, labelSpan);
+      }
+      iconSpan.innerHTML = iconMarkup;
+      labelSpan.textContent = label;
+    } else {
+      button.classList.remove("has-icon");
+      button.textContent = label;
+    }
+  }
+
+  function initializeButtonIcon(button, iconKey) {
+    if (!button || !iconKey) {
+      return;
+    }
+    const label = (button.textContent || "").trim();
+    button.dataset.iconKey = iconKey;
+    setButtonContent(button, label, iconKey);
+  }
+
+  function determineAutoModeState(settings = {}) {
     if (settings.extensionPaused) {
       return { label: "Paused", tone: "warning", title: "Extension is paused." };
     }
-    if (!settings.autoApplySafe) {
-      return { label: "Off", tone: "neutral", title: "Enable Autopilot in Settings to auto-apply safe fixes." };
+    if (!settings.autoModeEnabled) {
+      return { label: "Off", tone: "neutral", title: "Enable Auto-mode in Settings to auto-apply safe fixes." };
     }
     if (settings.autoApplyPaused) {
-      return { label: "Paused", tone: "warning", title: "Autopilot is paused across all sites." };
+      return { label: "Paused", tone: "warning", title: "Auto-mode is paused across all sites." };
     }
     if (settings.powerSaverMode) {
       return { label: "On (Power saver)", tone: "info", title: "Runs when this page changes significantly." };
@@ -583,6 +704,52 @@
       return `${(value / 1000).toFixed(2)} s`;
     }
     return `${(value / 1000).toFixed(1)} s`;
+  }
+
+  async function loadAutoModeNudgeState() {
+    try {
+      const record = await chrome.storage.local.get(AUTO_MODE_NUDGE_KEY);
+      autoModeNudgeDismissed = Boolean(record?.[AUTO_MODE_NUDGE_KEY]?.dismissed);
+    } catch (error) {
+      console.warn("[AltSpark] Failed to read auto-mode nudge state", error);
+      autoModeNudgeDismissed = false;
+    }
+  }
+
+  async function markAutoModeNudgeDismissed() {
+    if (autoModeNudgeDismissed) {
+      return;
+    }
+    autoModeNudgeDismissed = true;
+    try {
+      await chrome.storage.local.set({
+        [AUTO_MODE_NUDGE_KEY]: { dismissed: true, dismissedAt: Date.now() },
+      });
+    } catch (error) {
+      console.warn("[AltSpark] Failed to persist auto-mode nudge state", error);
+    }
+  }
+
+  function updateAutoModeEducation() {
+    if (!dom.autoModeEducation) {
+      return;
+    }
+    const settings = lastStatus?.settings || {};
+    if (settings.autoModeEnabled) {
+      if (!autoModeNudgeDismissed) {
+        markAutoModeNudgeDismissed().catch(() => {});
+      }
+      dom.autoModeEducation.hidden = true;
+      dom.autoModeEducation.removeAttribute("data-visible");
+      return;
+    }
+    const shouldShow = Boolean(lastStatus) && !autoModeNudgeDismissed;
+    dom.autoModeEducation.hidden = !shouldShow;
+    if (shouldShow) {
+      dom.autoModeEducation.setAttribute("data-visible", "true");
+    } else {
+      dom.autoModeEducation.removeAttribute("data-visible");
+    }
   }
 
   async function updateGlobalSetting(partial) {

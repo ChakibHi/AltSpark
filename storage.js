@@ -7,7 +7,7 @@ export const DEFAULT_SETTINGS = {
   preferAriaLabel: true,
   offerTranslations: true,
   userLanguage: "auto",
-  autoApplySafe: false,
+  autoModeEnabled: false,
   extensionPaused: false,
   autoApplyPaused: false,
   powerSaverMode: false,
@@ -20,7 +20,7 @@ const schema = {
   preferAriaLabel: "boolean",
   offerTranslations: "boolean",
   userLanguage: "string",
-  autoApplySafe: "boolean",
+  autoModeEnabled: "boolean",
   extensionPaused: "boolean",
   autoApplyPaused: "boolean",
   powerSaverMode: "boolean",
@@ -63,6 +63,9 @@ function coerceSettings(raw) {
   if (clean.userLanguage !== "auto" && typeof clean.userLanguage === "string") {
     clean.userLanguage = clean.userLanguage.slice(0, 35);
   }
+  if (typeof raw?.autoModeEnabled !== "boolean" && typeof raw?.autoApplySafe === "boolean") {
+    clean.autoModeEnabled = Boolean(raw.autoApplySafe);
+  }
   return clean;
 }
 
@@ -78,9 +81,14 @@ export async function getSettings() {
 }
 
 export async function setSettings(partial) {
+  let payload = partial || {};
+  if (payload && typeof payload === "object" && typeof payload.autoApplySafe === "boolean" && typeof payload.autoModeEnabled !== "boolean") {
+    payload = { ...payload, autoModeEnabled: payload.autoApplySafe };
+    delete payload.autoApplySafe;
+  }
   const area = getArea();
   const current = await getSettings();
-  const next = coerceSettings({ ...current, ...partial });
+  const next = coerceSettings({ ...current, ...payload });
   try {
     await area.set({ [STORAGE_KEY]: next });
     return next;
@@ -249,4 +257,3 @@ export async function recordAuditMetrics(counts) {
     return metrics;
   });
 }
-

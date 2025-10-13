@@ -58,7 +58,7 @@ describe("background message routing", () => {
     await flushMicrotasks();
 
     expect(sendResponse).toHaveBeenCalledWith({ ok: true });
-    expect(chromeStub.action.setBadgeBackgroundColor).toHaveBeenCalledWith({ tabId: 202, color: "#2563eb" });
+    expect(chromeStub.action.setBadgeBackgroundColor).toHaveBeenCalledWith({ tabId: 202, color: "#4b5563" });
     expect(chromeStub.action.setBadgeText).toHaveBeenCalledWith({ tabId: 202, text: "5" });
   });
 
@@ -147,7 +147,7 @@ describe("background message routing", () => {
     try {
       const autoSettings = {
         ...DEFAULT_SETTINGS,
-        autoApplySafe: true,
+        autoModeEnabled: true,
         extensionPaused: false,
         autoApplyPaused: false,
         powerSaverMode: false,
@@ -211,5 +211,39 @@ describe("background message routing", () => {
       pulse: true,
     });
     expect(sendResponse).toHaveBeenCalledWith({ ok: true });
+  });
+
+  it("returns a snapshot of site exclusions", async () => {
+    chromeStub.tabs.query.mockResolvedValue([]);
+
+    chromeStub.runtime.onMessage.dispatch(
+      {
+        type: "a11y-copy-helper:update-site-pref",
+        hostname: "example.com",
+        neverAuto: true,
+      },
+      { tab: { id: 808 } },
+      vi.fn(),
+    );
+
+    await flushMicrotasks();
+
+    const sendResponse = vi.fn();
+    chromeStub.runtime.onMessage.dispatch(
+      { type: "a11y-copy-helper:list-site-prefs" },
+      {},
+      sendResponse,
+    );
+
+    expect(sendResponse).toHaveBeenCalled();
+    const payload = sendResponse.mock.calls.at(-1)?.[0];
+    expect(payload?.ok).toBe(true);
+    expect(Array.isArray(payload?.sites)).toBe(true);
+    expect(payload.sites).toContainEqual({
+      host: "example.com",
+      paused: false,
+      whitelisted: false,
+      neverAuto: true,
+    });
   });
 });

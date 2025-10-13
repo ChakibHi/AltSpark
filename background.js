@@ -209,7 +209,7 @@ chrome.commands.onCommand.addListener((command, tab) => {
 });
 
 function isGlobalAutoEnabled(settings) {
-  if (!settings || !settings.autoApplySafe) {
+  if (!settings || !settings.autoModeEnabled) {
     return false;
   }
   if (settings.extensionPaused || settings.autoApplyPaused || settings.powerSaverMode) {
@@ -493,6 +493,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleSitePreferenceUpdate(message, sendResponse);
     return true;
   }
+  if (message.type === "a11y-copy-helper:list-site-prefs") {
+    sendResponse({ ok: true, sites: listSitePreferencesSnapshot() });
+    return false;
+  }
   return false;
 });
 
@@ -525,7 +529,7 @@ async function handlePopupStatus(message, sendResponse) {
         counts,
         metrics,
         settings: {
-          autoApplySafe: Boolean(cachedSettings?.autoApplySafe),
+          autoModeEnabled: Boolean(cachedSettings?.autoModeEnabled),
           extensionPaused: Boolean(cachedSettings?.extensionPaused),
           autoApplyPaused: Boolean(cachedSettings?.autoApplyPaused),
           powerSaverMode: Boolean(cachedSettings?.powerSaverMode),
@@ -642,7 +646,14 @@ function updateBadge(tabId) {
   const counts = tabIssueCounts.get(tabId);
   const pending = counts?.pending || 0;
   const text = pending > 0 ? String(Math.min(pending, 9999)) : "";
-  chrome.action.setBadgeBackgroundColor({ tabId, color: "#2563eb" }).catch(() => {});
+  const autoModeEnabled = Boolean(cachedSettings?.autoModeEnabled);
+  const autoModePaused = Boolean(cachedSettings?.autoApplyPaused) || Boolean(cachedSettings?.extensionPaused);
+  const tabAutoEnabled = autoTabs.has(tabId);
+  let badgeColor = "#4b5563";
+  if (autoModeEnabled && !autoModePaused) {
+    badgeColor = tabAutoEnabled ? "#2563eb" : "#6b7280";
+  }
+  chrome.action.setBadgeBackgroundColor({ tabId, color: badgeColor }).catch(() => {});
   chrome.action.setBadgeText({ tabId, text }).catch(() => {});
 }
 
@@ -674,6 +685,26 @@ function getSitePreferenceSync(host) {
     return { paused: false, whitelisted: false, neverAuto: false };
   }
   return cachedSitePrefs[host] || { paused: false, whitelisted: false, neverAuto: false };
+}
+
+function listSitePreferencesSnapshot() {
+  const entries = [];
+  if (!cachedSitePrefs || typeof cachedSitePrefs !== "object") {
+    return entries;
+  }
+  for (const [host, prefs] of Object.entries(cachedSitePrefs)) {
+    if (!host) {
+      continue;
+    }
+    entries.push({
+      host,
+      paused: Boolean(prefs?.paused),
+      whitelisted: Boolean(prefs?.whitelisted),
+      neverAuto: Boolean(prefs?.neverAuto),
+    });
+  }
+  entries.sort((a, b) => a.host.localeCompare(b.host));
+  return entries;
 }
 
 async function triggerAudit(tabId, scope) {
@@ -710,7 +741,7 @@ function shouldAutoApply(url) {
   if (cachedSettings?.extensionPaused) {
     return false;
   }
-  if (!cachedSettings?.autoApplySafe) {
+  if (!cachedSettings?.autoModeEnabled) {
     return false;
   }
   if (cachedSettings?.autoApplyPaused) {
@@ -941,7 +972,7 @@ async function initializeState() {
     console.warn("[AltSpark] Failed to load initial settings", error);
     cachedSettings = cachedSettings && typeof cachedSettings === "object"
       ? cachedSettings
-      : { autoApplySafe: false };
+      : { autoModeEnabled: false };
   }
   try {
     cachedSitePrefs = await getSitePreferences();
