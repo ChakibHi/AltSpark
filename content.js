@@ -276,13 +276,21 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
     activationStyleInjected = true;
   }
 
+  function resetActivationPrompt() {
+    if (activationPromptElement && activationPromptElement.parentNode) {
+      activationPromptElement.parentNode.removeChild(activationPromptElement);
+    }
+    activationPromptElement = null;
+  }
+
   function ensureActivationPromptElement() {
     if (typeof document === "undefined") {
       return null;
     }
-    if (activationPromptElement) {
+    if (activationPromptElement && activationPromptElement.isConnected) {
       return activationPromptElement;
     }
+    resetActivationPrompt();
     ensureActivationPromptStyle();
     const container = document.createElement("div");
     container.className = "altspark-activation-prompt";
@@ -485,6 +493,26 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
     issueCountsTimer = setTimeout(flushIssueCounts, delay);
   }
 
+  function sendMessageSafe(message) {
+    if (!chrome?.runtime?.sendMessage) {
+      return;
+    }
+    try {
+      const response = chrome.runtime.sendMessage(message);
+      if (response && typeof response.then === "function") {
+        response.catch((error) => {
+          if (!isExtensionContextInvalid(error)) {
+            console.warn("[AltSpark] Message send failed", error);
+          }
+        });
+      }
+    } catch (error) {
+      if (!isExtensionContextInvalid(error)) {
+        console.warn("[AltSpark] Message send failed", error);
+      }
+    }
+  }
+
   function flushIssueCounts() {
     issueCountsTimer = null;
     const payload = pendingCountsMessage;
@@ -492,7 +520,7 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
     if (!payload) {
       return;
     }
-    chrome.runtime.sendMessage(payload).catch(() => {});
+    sendMessageSafe(payload);
   }
 
   function publishIssueCounts(reason = "manual") {
@@ -595,14 +623,12 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
         return;
       }
       lastPanelStateSignature = signature;
-      chrome.runtime
-        .sendMessage({
-          type: "a11y-copy-helper:state-update",
-          state,
-          reason,
-          pageUrl: location.href,
-        })
-        .catch(() => {});
+      sendMessageSafe({
+        type: "a11y-copy-helper:state-update",
+        state,
+        reason,
+        pageUrl: location.href,
+      });
     } catch (error) {
       console.warn("[AltSpark] Failed to publish panel state", error);
     }
