@@ -17,6 +17,7 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
   var autoRunner = null;
   var auditInProgress = false;
   var lastPublishedCounts = null;
+  var lastPublishedCountsAuditId = null;
   var issueLookup = new Map();
   var lastAuditAt = null;
   var lastProgressEvent = null;
@@ -27,6 +28,10 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
   var activationMonitorInstalled = false;
   var auditStartedAt = null;
   var lastAuditDuration = null;
+  var activationPromptElement = null;
+  var activationPromptVisible = false;
+  var activationPromptHideTimer = null;
+  var activationStyleInjected = false;
 
   const AUTO_AUDIT_MIN_INTERVAL_MS = 60_000;
   const ISSUE_COUNT_DEBOUNCE_MS = 200;
@@ -192,8 +197,10 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
       aiClient?.requestActivation?.();
     } catch (_e) {}
     notifyPanelState("activation-required");
+    showActivationPrompt();
 
     // Install a one-shot listener for the next gesture.
+    let activated = false;
     await new Promise((resolve, reject) => {
       let done = false;
       let timerId = null;
@@ -209,6 +216,7 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
         if (done) return;
         done = true;
         cleanup();
+        activated = true;
         // Defer to the next microtask so userActivation flips first.
         queueMicrotask(() => resolve(true));
       };
@@ -221,6 +229,9 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
         reject(new Error("User activation required: click inside the page and try again."));
       }, Math.max(1000, timeoutMs | 0));
     });
+    if (activated) {
+      hideActivationPrompt(400);
+    }
     return true;
   }
 
@@ -243,11 +254,122 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
     return state.isActive || state.hasBeenActive;
   }
 
+  function ensureActivationPromptStyle() {
+    if (activationStyleInjected || typeof document === "undefined") {
+      return;
+    }
+    const style = document.createElement("style");
+    style.dataset.altsparkActivation = "true";
+    style.textContent = `
+.altspark-activation-prompt { position: fixed; inset: auto 16px 16px 16px; display: flex; justify-content: center; pointer-events: none; opacity: 0; transform: translateY(12px); transition: opacity 160ms ease, transform 160ms ease; z-index: 2147483646; font-family: "Segoe UI", system-ui, sans-serif; }
+.altspark-activation-prompt.is-visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.altspark-activation-prompt__inner { max-width: 420px; padding: 16px 20px; border-radius: 14px; background: rgba(17, 24, 39, 0.92); color: #f8fafc; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.55); border: 1px solid rgba(148, 163, 184, 0.35); display: flex; flex-direction: column; gap: 8px; }
+.altspark-activation-prompt__title { font-size: 15px; font-weight: 600; margin: 0; }
+.altspark-activation-prompt__body { margin: 0; font-size: 13px; line-height: 1.45; color: rgba(226, 232, 240, 0.9); }
+.altspark-activation-prompt__dismiss { align-self: flex-start; margin-top: 6px; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(148, 163, 184, 0.6); background: transparent; color: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 120ms ease, color 120ms ease, border-color 120ms ease; }
+.altspark-activation-prompt__dismiss:hover { background: rgba(59, 130, 246, 0.16); border-color: rgba(59, 130, 246, 0.6); color: #bfdbfe; }
+@media (prefers-reduced-motion: reduce) {
+  .altspark-activation-prompt { transition: none; transform: none; }
+}
+`;  
+    (document.head || document.documentElement).appendChild(style);
+    activationStyleInjected = true;
+  }
+
+  function ensureActivationPromptElement() {
+    if (typeof document === "undefined") {
+      return null;
+    }
+    if (activationPromptElement) {
+      return activationPromptElement;
+    }
+    ensureActivationPromptStyle();
+    const container = document.createElement("div");
+    container.className = "altspark-activation-prompt";
+    container.setAttribute("role", "status");
+    container.setAttribute("aria-live", "assertive");
+    container.hidden = true;
+    const inner = document.createElement("div");
+    inner.className = "altspark-activation-prompt__inner";
+    const title = document.createElement("p");
+    title.className = "altspark-activation-prompt__title";
+    title.textContent = "Auto-mode needs a quick click";
+    const body = document.createElement("p");
+    body.className = "altspark-activation-prompt__body";
+    body.textContent = "Click anywhere on this page once to finish enabling automatic fixes.";
+    const dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.className = "altspark-activation-prompt__dismiss";
+    dismiss.textContent = "Got it";
+    dismiss.addEventListener("click", () => {
+      hideActivationPrompt();
+    });
+    inner.append(title, body, dismiss);
+    container.appendChild(inner);
+    document.documentElement.appendChild(container);
+    activationPromptElement = container;
+    return activationPromptElement;
+  }
+
+  function showActivationPrompt() {
+    if (pageHasUserActivation()) {
+      hideActivationPrompt();
+      return;
+    }
+    const element = ensureActivationPromptElement();
+    if (!element) {
+      return;
+    }
+    if (activationPromptHideTimer) {
+      clearTimeout(activationPromptHideTimer);
+      activationPromptHideTimer = null;
+    }
+    element.hidden = false;
+    requestAnimationFrame(() => {
+      if (!element) {
+        return;
+      }
+      element.classList.add("is-visible");
+    });
+    activationPromptVisible = true;
+  }
+
+  function hideActivationPrompt(delay = 0) {
+    const element = activationPromptElement;
+    if (!element || (!activationPromptVisible && !element.classList.contains("is-visible"))) {
+      return;
+    }
+    const applyHide = () => {
+      if (!activationPromptElement) {
+        return;
+      }
+      activationPromptElement.classList.remove("is-visible");
+      activationPromptVisible = false;
+      activationPromptElement.hidden = true;
+    };
+    if (delay > 0) {
+      if (activationPromptHideTimer) {
+        clearTimeout(activationPromptHideTimer);
+      }
+      activationPromptHideTimer = setTimeout(() => {
+        activationPromptHideTimer = null;
+        applyHide();
+      }, delay);
+    } else {
+      if (activationPromptHideTimer) {
+        clearTimeout(activationPromptHideTimer);
+        activationPromptHideTimer = null;
+      }
+      applyHide();
+    }
+  }
+
   function ensureActivationMonitor() {
     if (activationMonitorInstalled || typeof window === "undefined") {
       return;
     }
     const notifyIfNeeded = () => {
+      hideActivationPrompt(300);
       if (aiClient?.requiresActivation?.()) {
         notifyPanelState("activation-gesture");
       }
@@ -384,8 +506,10 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
       previous.autoApplied === counts.autoApplied &&
       previous.pending === counts.pending
     );
-    if (countsChanged) {
+    const isNewAudit = Boolean(currentAuditId && currentAuditId !== lastPublishedCountsAuditId);
+    if (countsChanged || isNewAudit || reason !== "progress") {
       lastPublishedCounts = { ...counts };
+      lastPublishedCountsAuditId = currentAuditId || null;
       queueIssueCounts(reason, counts);
     } else if (pendingCountsMessage) {
       pendingCountsMessage.reason = reason;
@@ -592,6 +716,7 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
         console.error("[AltSpark] audit failed", error);
         issueStates = new Map();
         lastPublishedCounts = null;
+        lastPublishedCountsAuditId = null;
         publishIssueCounts("audit-error");
         notifyPanelState("audit-error", { immediate: true });
         auditInProgress = false;
@@ -780,9 +905,11 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
         }
         if (!pageHasUserActivation()) {
           aiClient?.requestActivation?.();
+          showActivationPrompt();
           this.schedule(2000);
           return;
         }
+        hideActivationPrompt(400);
         const now = Date.now();
         const minInterval = (currentSettings?.powerSaverMode ? AUTO_AUDIT_MIN_INTERVAL_MS * 2 : AUTO_AUDIT_MIN_INTERVAL_MS);
         if (lastAuditAt && now - lastAuditAt < minInterval) {
@@ -843,11 +970,12 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
     autoRunner.start();
   }
 
-  function stopAutoAutomation() {
+function stopAutoAutomation() {
     if (autoRunner) {
       autoRunner.stop();
       autoRunner = null;
     }
+    hideActivationPrompt();
   }
 
   async function composePanelState() {
