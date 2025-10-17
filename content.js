@@ -124,7 +124,7 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
       return modulesLoaded;
     }
     modulesLoaded = Promise.all([
-      import(chrome.runtime.getURL("ai.js")),
+      import(chrome.runtime.getURL("ai-managed.js")),
       import(chrome.runtime.getURL("storage.js")),
       import(chrome.runtime.getURL("auditor.js")),
       import(chrome.runtime.getURL("highlighter.js")),
@@ -996,12 +996,17 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
     autoRunner.start();
   }
 
-function stopAutoAutomation() {
+  function stopAutoAutomation() {
     if (autoRunner) {
       autoRunner.stop();
       autoRunner = null;
     }
     hideActivationPrompt();
+    try {
+      aiClient?.flushModelCache?.();
+    } catch (error) {
+      console.warn("[AltSpark] Failed to flush model cache", error);
+    }
   }
 
   async function composePanelState() {

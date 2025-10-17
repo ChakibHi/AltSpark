@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createAIClient } from "../../ai.js";
+import { createAIClient } from "../../ai-managed.js";
 import { createActivationError, createModelCtor } from "../ai-model-stubs.js";
 
 const ENSURE_TYPE = "a11y-copy-helper:ensure-offscreen";
@@ -118,5 +118,13 @@ describe("AIClient offscreen host coordination", () => {
       text: "Hello world",
     });
     expect(result).toBe("summary");
+  });
+});
+
+describe("AIClient lifecycle helpers", () => {
+  it("exposes flushModelCache helper", async () => {
+    const client = createAIClient({ modelIdleMs: 10 });
+    expect(typeof client.flushModelCache).toBe("function");
+    await expect(client.flushModelCache()).resolves.toBeUndefined();
   });
 });

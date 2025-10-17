@@ -7,6 +7,7 @@ A Chrome MV3 extension that audits any page or text selection for copy-level acc
 
 - Auto-mode continuous scanning with automatic fixes (opt-in).
 - Inline activation prompt ensures Chrome's on-device AI models get the required user gesture once per page.
+- Managed AI lifecycle unloads on-device models after short idle periods to save memory.
 
 - Audit any tab or highlighted selection via context menus or the `Ctrl/Cmd+Shift+L` shortcut.
 - Lightweight popup shows live finding counts, lifetime totals, and pause toggles, with one-click access to the side panel.
@@ -20,7 +21,7 @@ A Chrome MV3 extension that audits any page or text selection for copy-level acc
 **Quick Start**
 
 1. Enable Auto-mode from the popup to let AltSpark monitor tabs automatically.
-2. When prompted, click once on the page to finish enabling on-device models—after that, audits run on their own.
+2. When prompted, click once on the page to finish enabling on-device models—after that, audits run on their own and idle models unload automatically after a few minutes.
 3. Use the side panel to manage exclusions, inspect applied fixes, or run manual audits.
 
 1. Load the unpacked extension via `chrome://extensions` (enable Developer Mode, choose the `a11y-copy-helper` folder).
@@ -48,7 +49,7 @@ A Chrome MV3 extension that audits any page or text selection for copy-level acc
 ```
 
 1. **Auto-mode or user triggers an audit** - background requests now come from Auto-mode (when enabled) or from the popup, side panel, context menu, or shortcut. The background service worker ensures the content script is injected and relays the audit request.
-2. **Content script runs the Auditor** - it gathers page context, normalises copy, and calls into the `AIClient` wrapper. Auto-mode reuses this pipeline to apply safe fixes incrementally and publish live counts.
+2. **Content script runs the Auditor** - it gathers page context, normalises copy, and calls into the managed AI client. Auto-mode reuses this pipeline to apply safe fixes incrementally, publish live counts, and free idle models.
 3. **AIClient talks to Chrome AI APIs** -
    - `chrome.ai.languageDetector` determines language and confidence.
    - `chrome.ai.summarizer` condenses nearby text so headings and links get better prompts.

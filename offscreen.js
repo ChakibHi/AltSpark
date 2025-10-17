@@ -1,4 +1,4 @@
-import { createAIClient } from "./ai.js";
+import { createAIClient } from "./ai-managed.js";
 
 const UNAVAILABLE_STATUSES = new Set(["unavailable", "unsupported"]);
 const DEFAULT_SUMMARIZER_TYPES = ["key-points", "tldr"];

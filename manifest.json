@@ -50,6 +50,7 @@
       "resources": [
         "styles.css",
         "ai.js",
+        "ai-managed.js",
         "offscreen.js",
         "offscreen.html",
         "auditor.js",
