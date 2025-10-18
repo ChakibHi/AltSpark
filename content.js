@@ -1146,6 +1146,13 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
       return "";
     }
     if (issue.type === "image") {
+      if (Object.prototype.hasOwnProperty.call(issue, "originalAltText")) {
+        const snapshot = issue.originalAltText;
+        if (typeof snapshot === "string" && snapshot.trim()) {
+          return snapshot.trim();
+        }
+        return "(empty)";
+      }
       return issue.element.getAttribute("alt") || "(empty)";
     }
     if (issue.type === "link" || issue.type === "heading") {

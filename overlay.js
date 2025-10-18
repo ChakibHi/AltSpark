@@ -512,6 +512,13 @@ function deriveCurrentText(issue) {
     return "";
   }
   if (issue.type === "image") {
+    if (Object.prototype.hasOwnProperty.call(issue, "originalAltText")) {
+      const snapshot = issue.originalAltText;
+      if (typeof snapshot === "string" && snapshot.trim()) {
+        return snapshot.trim();
+      }
+      return "(empty)";
+    }
     return issue.element.getAttribute("alt") || "(empty)";
   }
   if (issue.type === "link" || issue.type === "heading") {
@@ -545,5 +552,4 @@ export function hideOverlay() {
 export function showOverlay() {
   overlayInstance?.showPanel();
 }
-
 
