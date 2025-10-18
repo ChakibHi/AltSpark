@@ -17,13 +17,24 @@ import { getIcon } from "./icons.js";
     autoModeEducationDismiss: document.getElementById("auto-mode-education-dismiss"),
     toggleAutoMode: document.getElementById("toggle-auto-mode"),
     toggleAutopilot: document.getElementById("toggle-autopilot"),
-    // Site-level controls moved to side panel for a simpler popup.
-    toggleSiteAuto: document.getElementById("toggle-site-auto"),
-    toggleSitePause: document.getElementById("toggle-site-pause"),
-    siteSection: document.getElementById("site-controls"),
-    siteLabel: document.getElementById("site-label"),
+    siteExclusionToggle: document.getElementById("toggle-site-exclusion"),
+    siteExclusionLabel: document.getElementById("toggle-site-exclusion-label"),
+    siteExclusionIcon: document.querySelector("#toggle-site-exclusion .site-scope__icon-slot"),
+    siteScope: document.getElementById("site-scope"),
+    siteScopeHost: document.getElementById("site-scope-host"),
+    siteScopeState: document.getElementById("site-scope-state"),
+    siteScopeHint: document.getElementById("site-scope-hint"),
     openSettings: document.getElementById("open-settings"),
+    capabilitiesBlock: document.getElementById("capabilities-block"),
+    capabilitiesToggle: document.getElementById("capabilities-toggle"),
+    capabilitiesSummary: document.getElementById("capabilities-summary"),
+    capabilitiesIndicator: document.getElementById("capabilities-indicator"),
     capabilities: document.getElementById("popup-capabilities"),
+    capabilitiesChevron: document.querySelector("#capabilities-toggle .capabilities-toggle__chevron"),
+    autoModeSectionToggle: document.getElementById("auto-mode-section-toggle"),
+    autoModeSectionBody: document.getElementById("auto-mode-section-body"),
+    autoModeSummary: document.getElementById("auto-mode-summary"),
+    autoModeChevron: document.querySelector("#auto-mode-section-toggle .section-expander__chevron"),
     counters: {
       pending: document.getElementById("count-pending"),
       applied: document.getElementById("count-applied"),
@@ -33,16 +44,22 @@ import { getIcon } from "./icons.js";
   const DEFAULT_COUNTS = { total: 0, applied: 0, ignored: 0, autoApplied: 0, pending: 0 };
   const DEFAULT_METRICS = { lifetimeFindings: 0, lifetimeApplied: 0, lifetimeAutoApplied: 0, lifetimeIgnored: 0 };
   const AUTO_MODE_NUDGE_KEY = "a11yCopyHelperAutoModeNudge";
+  const DEFAULT_SITE_EXCLUSION_LABEL = "Allow Auto-mode on this site";
   const ICON_MARKUP = {
     quickFix: getIcon("wand"),
     scan: getIcon("scan"),
     openPanel: getIcon("panelRight"),
     autoMode: getIcon("sparkles"),
+    siteActive: getIcon("sparkles"),
+    siteExcluded: getIcon("ban"),
+    chevronDown: getIcon("chevronDown"),
   };
 
   let lastStatus = null;
   let refreshing = false;
   let autoModeNudgeDismissed = false;
+  let autoModeSectionExpanded = false;
+  let autoModeSectionUserOverride = false;
 
   await loadAutoModeNudgeState();
   attachEventListeners();
@@ -98,7 +115,11 @@ import { getIcon } from "./icons.js";
       updateGlobalSetting({ autoApplyPaused: paused });
     });
 
-    // Site-level toggles are handled in the side panel; popup keeps global basics only.
+    dom.siteExclusionToggle?.addEventListener("click", handleSiteExclusionToggle);
+
+    dom.capabilitiesToggle?.addEventListener("click", handleCapabilitiesToggle);
+
+    dom.autoModeSectionToggle?.addEventListener("click", handleAutoModeSectionToggle);
 
     dom.openSettings?.addEventListener("click", () => {
       openSidePanel({ focus: "settings" })
@@ -113,6 +134,8 @@ import { getIcon } from "./icons.js";
   function decorateStaticButtons() {
     initializeButtonIcon(dom.openPanel, "openPanel");
     initializeButtonIcon(dom.autoModeEducationEnable, "autoMode");
+    initializeChevronIcon(dom.capabilitiesChevron);
+    initializeChevronIcon(dom.autoModeChevron);
   }
 
   async function refreshStatus() {
@@ -300,6 +323,58 @@ import { getIcon } from "./icons.js";
     }
   }
 
+  async function handleSiteExclusionToggle() {
+    const button = dom.siteExclusionToggle;
+    if (!button) {
+      return;
+    }
+    if (!lastStatus?.tabId || !lastStatus?.host) {
+      updateSiteExclusionToggle();
+      return;
+    }
+    const currentPressed = button.getAttribute("aria-pressed") === "true";
+    const targetState = !currentPressed;
+    const hostLabel = formatHostForMessage(lastStatus.host);
+    button.disabled = true;
+    button.setAttribute("aria-pressed", targetState ? "true" : "false");
+    button.dataset.state = targetState ? "excluded" : "active";
+    setStatusMessage(
+      targetState
+        ? `Adding ${hostLabel} to Auto-mode exclusions…`
+        : `Removing ${hostLabel} from Auto-mode exclusions…`,
+      "info"
+    );
+    try {
+      await updateSitePreference({ neverAuto: targetState });
+    } catch (_error) {
+      button.setAttribute("aria-pressed", currentPressed ? "true" : "false");
+      button.dataset.state = currentPressed ? "excluded" : "active";
+      updateSiteExclusionToggle();
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function handleCapabilitiesToggle() {
+    if (!dom.capabilitiesToggle || !dom.capabilities) {
+      return;
+    }
+    if (dom.capabilitiesToggle.disabled) {
+      return;
+    }
+    const expanded = dom.capabilitiesToggle.getAttribute("aria-expanded") === "true";
+    const next = !expanded;
+    dom.capabilitiesToggle.setAttribute("aria-expanded", next ? "true" : "false");
+    setElementVisibility(dom.capabilities, next);
+  }
+
+  function handleAutoModeSectionToggle() {
+    if (dom.autoModeSectionToggle?.disabled) {
+      return;
+    }
+    setAutoModeSectionExpanded(!autoModeSectionExpanded, { userInitiated: true });
+  }
+
   function updateStatusStrip() {
     if (!dom.autoModeStatus || !dom.auditDuration) {
       return;
@@ -324,32 +399,53 @@ import { getIcon } from "./icons.js";
     if (!container) {
       return;
     }
-    container.innerHTML = "";
-    if (!data || !Array.isArray(data.items) || data.items.length === 0) {
-      container.hidden = true;
-      container.removeAttribute("data-ready");
+    const block = dom.capabilitiesBlock;
+    const toggle = dom.capabilitiesToggle;
+    const summary = dom.capabilitiesSummary;
+    const indicator = dom.capabilitiesIndicator;
+    if (!block || !toggle || !summary || !indicator) {
       return;
     }
-    container.hidden = false;
-    container.dataset.ready = data.ready ? "true" : "false";
-    const dot = document.createElement("span");
-    dot.className = `capabilities-dot ${data.ready ? "is-ready" : "is-partial"}`;
-    dot.setAttribute("aria-hidden", "true");
-    container.appendChild(dot);
-    const label = document.createElement("span");
-    label.className = "capabilities-label";
-    const requiredItems = data.items.filter((item) => item && item.required !== false);
-    const downloadingRequired = requiredItems.some((item) => item && item.status === "downloadable");
-    let labelText = "Offline Ready";
-    if (!data.ready) {
-      labelText = downloadingRequired ? "Preparing offline models" : "Offline models unavailable";
+    const hasData = Boolean(data && Array.isArray(data.items) && data.items.length > 0);
+    if (!hasData) {
+      setElementVisibility(block, false);
+      toggle.disabled = true;
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.dataset.ready = "false";
+      toggle.dataset.state = "empty";
+      toggle.title = "";
+      summary.textContent = "Offline models";
+      indicator.className = "capabilities-dot";
+      setElementVisibility(container, false);
+      container.innerHTML = "";
+      return;
     }
-    label.textContent = labelText;
-    container.appendChild(label);
-    data.items.forEach((item) => {
-      if (!item || typeof item.label !== "string") {
-        return;
-      }
+
+    setElementVisibility(block, true);
+    toggle.disabled = false;
+    const items = data.items.filter((item) => item && typeof item.label === "string");
+    const requiredItems = items.filter((item) => item.required !== false);
+    const downloadingRequired = requiredItems.some((item) => item.status === "downloadable");
+    const ready = Boolean(data.ready);
+    const state = ready ? "ready" : downloadingRequired ? "downloading" : "missing";
+    const indicatorClass = state === "ready" ? "is-ready" : state === "downloading" ? "is-partial" : "is-missing";
+    const summaryText = ready
+      ? "Offline models ready"
+      : downloadingRequired
+        ? "Preparing offline models"
+        : "Offline models unavailable";
+    toggle.dataset.ready = ready ? "true" : "false";
+    toggle.dataset.state = state;
+    indicator.className = `capabilities-dot ${indicatorClass}`;
+    summary.textContent = summaryText;
+    toggle.title = summaryText;
+
+    const expanded = toggle.getAttribute("aria-expanded") === "true";
+    setElementVisibility(container, expanded);
+    container.dataset.ready = ready ? "true" : "false";
+    container.innerHTML = "";
+
+    items.forEach((item) => {
       const pill = document.createElement("span");
       const statusClass = item.available
         ? "is-ready"
@@ -373,6 +469,18 @@ import { getIcon } from "./icons.js";
       pill.appendChild(pillIcon);
       container.appendChild(pill);
     });
+  }
+
+  function setAutoModeSectionExpanded(expanded, { userInitiated = false } = {}) {
+    autoModeSectionExpanded = Boolean(expanded);
+    if (!dom.autoModeSectionToggle || !dom.autoModeSectionBody) {
+      return;
+    }
+    dom.autoModeSectionToggle.setAttribute("aria-expanded", autoModeSectionExpanded ? "true" : "false");
+    setElementVisibility(dom.autoModeSectionBody, autoModeSectionExpanded);
+    if (userInitiated) {
+      autoModeSectionUserOverride = true;
+    }
   }
 
   function updateFindingsState() {
@@ -485,7 +593,16 @@ import { getIcon } from "./icons.js";
       dom.toggleAutopilot.disabled = disabled;
     }
 
-    // Site-level toggles are managed in the side panel now.
+    if (dom.capabilitiesToggle) {
+      const blockHidden = dom.capabilitiesBlock ? dom.capabilitiesBlock.hidden : true;
+      dom.capabilitiesToggle.disabled = !hasStatus || blockHidden;
+    }
+
+    if (dom.autoModeSectionToggle) {
+      dom.autoModeSectionToggle.disabled = !hasStatus;
+    }
+
+    updateSiteExclusionToggle({ hasStatus, sitePreference: sitePref });
 
     syncActionButtonState(dom.primaryAction, settings);
     syncActionButtonState(dom.secondaryAction, settings);
@@ -495,6 +612,13 @@ import { getIcon } from "./icons.js";
     }
     if (dom.openPanel) {
       dom.openPanel.disabled = !hasStatus || !lastStatus?.tabId;
+    }
+
+    updateAutoModeSummary(settings);
+    if (!autoModeSectionUserOverride) {
+      const shouldExpand = hasStatus
+        && (!settings.autoModeEnabled || Boolean(settings.autoApplyPaused) || Boolean(settings.extensionPaused));
+      setAutoModeSectionExpanded(shouldExpand);
     }
   }
 
@@ -513,6 +637,64 @@ import { getIcon } from "./icons.js";
     }
   }
 
+  function updateSiteExclusionToggle({ hasStatus, sitePreference } = {}) {
+    const button = dom.siteExclusionToggle;
+    if (!button) {
+      return;
+    }
+    const iconSlot = dom.siteExclusionIcon;
+    const labelSpan = dom.siteExclusionLabel;
+    const hostSpan = dom.siteScopeHost;
+    const stateSpan = dom.siteScopeState;
+    const hintEl = dom.siteScopeHint;
+    const scopeSection = dom.siteScope;
+    const host = lastStatus?.host || null;
+    const availableStatus = hasStatus ?? Boolean(lastStatus);
+    const preference = sitePreference || lastStatus?.sitePreference || {};
+    const excluded = Boolean(preference.neverAuto);
+    const hostAvailable = Boolean(host);
+    const disabled = !availableStatus || !hostAvailable;
+    const datasetState = disabled ? "disabled" : excluded ? "excluded" : "active";
+    button.disabled = disabled;
+    button.dataset.state = datasetState;
+    button.setAttribute("aria-pressed", !disabled && excluded ? "true" : "false");
+    const labelText = getSiteExclusionLabel(host, { disabled, excluded });
+    if (labelSpan) {
+      labelSpan.textContent = labelText;
+    }
+    if (scopeSection) {
+      scopeSection.dataset.state = datasetState;
+    }
+    if (stateSpan) {
+      stateSpan.textContent = getSiteExclusionStateText({ disabled, excluded });
+    }
+    if (hostSpan) {
+      hostSpan.textContent = hostAvailable ? truncateHost(host, 40) : "—";
+    }
+    const summary = getSiteExclusionSummary(host, { disabled, excluded });
+    if (hintEl) {
+      if (summary) {
+        hintEl.textContent = summary;
+        setElementVisibility(hintEl, true);
+      } else {
+        hintEl.textContent = "";
+        setElementVisibility(hintEl, false);
+      }
+    }
+    const hint = getSiteExclusionHint(host, { disabled, excluded });
+    if (hint) {
+      button.title = hint;
+      button.setAttribute("aria-label", labelText);
+    } else {
+      button.removeAttribute("title");
+      button.removeAttribute("aria-label");
+    }
+    if (iconSlot) {
+      const iconKey = disabled ? null : excluded ? "siteExcluded" : "siteActive";
+      iconSlot.innerHTML = iconKey ? ICON_MARKUP[iconKey] || "" : "";
+    }
+  }
+
   function toggleInputs(disabled) {
     const controls = [
       dom.primaryAction,
@@ -521,10 +703,11 @@ import { getIcon } from "./icons.js";
       dom.toggleAutopilot,
       dom.autoModeEducationEnable,
       dom.autoModeEducationDismiss,
-      dom.toggleSiteAuto,
-      dom.toggleSitePause,
+      dom.siteExclusionToggle,
       dom.openSettings,
       dom.openPanel,
+      dom.capabilitiesToggle,
+      dom.autoModeSectionToggle,
     ];
     controls.forEach((element) => {
       if (element) {
@@ -548,19 +731,61 @@ import { getIcon } from "./icons.js";
     }
     configureActionButton(dom.primaryAction, { action: "quick-fix", label: "Quick Fix", icon: "quickFix" });
     configureActionButton(dom.secondaryAction, { action: "scan", label: "Scan", icon: "scan" });
-    if (dom.siteSection) {
-      dom.siteSection.hidden = true;
-    }
-    if (dom.siteLabel) {
-      dom.siteLabel.textContent = "";
-    }
     if (dom.toggleAutoMode) {
       dom.toggleAutoMode.checked = false;
+    }
+    if (dom.siteExclusionToggle) {
+      dom.siteExclusionToggle.disabled = true;
+      dom.siteExclusionToggle.dataset.state = "disabled";
+      dom.siteExclusionToggle.setAttribute("aria-pressed", "false");
+      dom.siteExclusionToggle.removeAttribute("title");
+      dom.siteExclusionToggle.removeAttribute("aria-label");
+    }
+    if (dom.siteScope) {
+      dom.siteScope.dataset.state = "disabled";
+    }
+    if (dom.siteScopeHost) {
+      dom.siteScopeHost.textContent = "—";
+    }
+    if (dom.siteScopeState) {
+      dom.siteScopeState.textContent = "Inactive";
+    }
+    if (dom.siteScopeHint) {
+      dom.siteScopeHint.textContent = "Open a supported page to manage site exclusions.";
+      setElementVisibility(dom.siteScopeHint, true);
+    }
+    if (dom.siteExclusionIcon) {
+      dom.siteExclusionIcon.innerHTML = "";
+    }
+    if (dom.siteExclusionLabel) {
+      dom.siteExclusionLabel.textContent = DEFAULT_SITE_EXCLUSION_LABEL;
+    }
+    setElementVisibility(dom.capabilitiesBlock, false);
+    setElementVisibility(dom.capabilities, false);
+    if (dom.capabilitiesToggle) {
+      dom.capabilitiesToggle.setAttribute("aria-expanded", "false");
+      dom.capabilitiesToggle.dataset.ready = "false";
+      dom.capabilitiesToggle.dataset.state = "empty";
+    }
+    if (dom.capabilitiesSummary) {
+      dom.capabilitiesSummary.textContent = "Offline models";
+    }
+    if (dom.capabilitiesIndicator) {
+      dom.capabilitiesIndicator.className = "capabilities-dot";
     }
     if (dom.autoModeEducation) {
       dom.autoModeEducation.hidden = true;
       dom.autoModeEducation.removeAttribute("data-visible");
     }
+    if (dom.autoModeSummary) {
+      dom.autoModeSummary.textContent = "Loading…";
+    }
+    if (dom.autoModeSectionToggle) {
+      dom.autoModeSectionToggle.dataset.state = "loading";
+      dom.autoModeSectionToggle.title = "Loading…";
+    }
+    setAutoModeSectionExpanded(false);
+    autoModeSectionUserOverride = false;
     renderCapabilities(dom.capabilities, null);
   }
 
@@ -627,6 +852,13 @@ import { getIcon } from "./icons.js";
     setButtonContent(button, label, iconKey);
   }
 
+  function initializeChevronIcon(element) {
+    if (!element) {
+      return;
+    }
+    element.innerHTML = ICON_MARKUP.chevronDown || "";
+  }
+
   function determineAutoModeState(settings = {}) {
     if (settings.extensionPaused) {
       return { label: "Paused", tone: "warning", title: "Extension is paused." };
@@ -641,6 +873,35 @@ import { getIcon } from "./icons.js";
       return { label: "On (Power saver)", tone: "info", title: "Runs when this page changes significantly." };
     }
     return { label: "On", tone: "success" };
+  }
+
+  function updateAutoModeSummary(settings = {}) {
+    if (!dom.autoModeSummary || !dom.autoModeSectionToggle) {
+      return;
+    }
+    const detail = getAutoModeSummaryDetails(settings);
+    dom.autoModeSummary.textContent = detail.text;
+    dom.autoModeSectionToggle.dataset.state = detail.state;
+    dom.autoModeSectionToggle.title = detail.text;
+  }
+
+  function getAutoModeSummaryDetails(settings = {}) {
+    if (!settings || Object.keys(settings).length === 0) {
+      return { text: "Loading…", state: "loading" };
+    }
+    if (settings.extensionPaused) {
+      return { text: "Extension paused", state: "extension-paused" };
+    }
+    if (!settings.autoModeEnabled) {
+      return { text: "Off", state: "off" };
+    }
+    if (settings.autoApplyPaused) {
+      return { text: "Paused globally", state: "paused" };
+    }
+    if (settings.powerSaverMode) {
+      return { text: "Power saver", state: "power-saver" };
+    }
+    return { text: "On", state: "on" };
   }
 
   function computePendingCount() {
@@ -704,6 +965,91 @@ import { getIcon } from "./icons.js";
       return `${(value / 1000).toFixed(2)} s`;
     }
     return `${(value / 1000).toFixed(1)} s`;
+  }
+
+  function getSiteExclusionLabel(host, { disabled, excluded } = {}) {
+    if (!host) {
+      return disabled ? "Site exclusions unavailable for this page" : DEFAULT_SITE_EXCLUSION_LABEL;
+    }
+    const hostLabel = formatHostForLabel(host);
+    return excluded ? `Allow Auto-mode on ${hostLabel}` : `Exclude ${hostLabel} from Auto-mode`;
+  }
+
+  function getSiteExclusionHint(host, { disabled, excluded } = {}) {
+    if (disabled) {
+      return "Open a supported webpage to manage site exclusions.";
+    }
+    const hostLabel = formatHostForMessage(host);
+    return excluded
+      ? `Remove ${hostLabel} from the Auto-mode exclusions list.`
+      : `Add ${hostLabel} to the Auto-mode exclusions list.`;
+  }
+
+  function getSiteExclusionStateText({ disabled, excluded } = {}) {
+    if (disabled) {
+      return "Inactive";
+    }
+    return excluded ? "Paused" : "Active";
+  }
+
+  function getSiteExclusionSummary(host, { disabled, excluded } = {}) {
+    if (disabled) {
+      return "Open a supported page to manage site exclusions.";
+    }
+    if (!excluded) {
+      return "";
+    }
+    const hostLabel = formatHostForMessage(host);
+    return `Auto-mode is paused on ${hostLabel}.`;
+  }
+
+  function formatHostForLabel(host) {
+    const clean = (host || "").trim();
+    if (!clean) {
+      return "this site";
+    }
+    return truncateHost(clean, 32);
+  }
+
+  function formatHostForMessage(host) {
+    const clean = (host || "").trim();
+    if (!clean) {
+      return "this site";
+    }
+    return truncateHost(clean, 48);
+  }
+
+  function truncateHost(host, maxLength) {
+    if (typeof host !== "string" || !host) {
+      return "";
+    }
+    if (host.length <= maxLength) {
+      return host;
+    }
+    return `${host.slice(0, Math.max(0, maxLength - 1))}…`;
+  }
+
+  function setElementVisibility(element, visible) {
+    if (!element) {
+      return;
+    }
+    if (visible) {
+      element.hidden = false;
+      element.removeAttribute("aria-hidden");
+      if (element.dataset.prevDisplay) {
+        element.style.display = element.dataset.prevDisplay;
+        delete element.dataset.prevDisplay;
+      } else {
+        element.style.removeProperty("display");
+      }
+    } else {
+      element.hidden = true;
+      element.setAttribute("aria-hidden", "true");
+      if (!element.dataset.prevDisplay && element.style.display && element.style.display !== "none") {
+        element.dataset.prevDisplay = element.style.display;
+      }
+      element.style.display = "none";
+    }
   }
 
   async function loadAutoModeNudgeState() {

@@ -13,48 +13,82 @@
             <span class="popup-title__brand">AltSpark</span>
             <span class="popup-title__badge">Local</span>
           </h1>
-          <p id="status-message" class="popup-message" role="status" aria-live="polite"></p>
         </div>
       </header>
 
-      <section class="popup-status-strip" aria-label="Auto-mode status">
-        <span id="autopilot-status" class="status-pill">Auto-mode: --</span>
-        <span class="status-strip__divider" aria-hidden="true">&bull;</span>
-        <span id="audit-duration" class="status-duration" title="Time to scan and apply safe fixes.">Last audit: --</span>
-      </section>
-
-      <div id="popup-capabilities" class="capabilities-strip popup-capabilities" aria-live="polite"></div>
-
-      <section class="popup-findings" aria-label="Findings state">
-        <span id="findings-state" class="state-chip" data-tone="neutral">Scan needed</span>
-      </section>
-
-      <section class="popup-counters" aria-label="Quick snapshot">
-        <div class="counter-card" title="Issues pending review or apply">
-          <div>
-            <div class="counter-label">Pending</div>
-            <div id="count-pending" class="counter-value">0</div>
-          </div>
-        </div>
-        <div class="counter-card" title="Fixes applied in the last audit">
-          <div>
-            <div class="counter-label">Applied</div>
-            <div id="count-applied" class="counter-value">0</div>
-          </div>
+      <section class="status-banner" aria-label="Auto-mode status">
+        <p id="status-message" class="status-banner__message" role="status" aria-live="polite"></p>
+        <div class="status-banner__row">
+          <span id="autopilot-status" class="status-pill">Auto-mode: --</span>
+          <span id="findings-state" class="state-chip" data-tone="neutral">Scan needed</span>
+          <span class="status-strip__divider" aria-hidden="true">&bull;</span>
+          <span id="audit-duration" class="status-duration" title="Time to scan and apply safe fixes.">Last audit: --</span>
         </div>
       </section>
 
-      <section class="popup-actions" aria-label="Primary actions">
-        <button id="primary-action" type="button" class="primary" data-action="quick-fix">Quick Fix</button>
-        <button id="secondary-action" type="button" class="secondary" data-action="scan">Scan</button>
+      <section id="capabilities-block" class="capabilities-block" hidden aria-label="Offline models">
+        <button
+          id="capabilities-toggle"
+          type="button"
+          class="capabilities-toggle"
+          aria-expanded="false"
+          aria-controls="popup-capabilities"
+        >
+          <span class="capabilities-toggle__status">
+            <span id="capabilities-indicator" class="capabilities-dot" aria-hidden="true"></span>
+            <span id="capabilities-summary" class="capabilities-toggle__label">Offline models</span>
+          </span>
+          <span class="capabilities-toggle__chevron" aria-hidden="true"></span>
+        </button>
+        <div id="popup-capabilities" class="capabilities-strip popup-capabilities" hidden aria-live="polite"></div>
       </section>
 
-      <section aria-label="Details" class="popup-actions">
-        <button id="open-panel" type="button" class="secondary">Open Side Panel</button>
+      <section id="site-scope" class="site-scope" data-state="disabled" aria-label="Auto-mode for this site">
+        <header class="site-scope__header">
+          <span class="site-scope__eyebrow">This site</span>
+          <span id="site-scope-host" class="site-scope__host">—</span>
+        </header>
+        <button
+          id="toggle-site-exclusion"
+          type="button"
+          class="site-scope__button"
+          aria-pressed="false"
+          aria-describedby="site-scope-hint"
+        >
+          <span class="site-scope__icon" aria-hidden="true">
+            <span class="site-scope__icon-slot"></span>
+          </span>
+          <span class="site-scope__copy">
+            <span id="site-scope-state" class="site-scope__state">Inactive</span>
+            <span id="toggle-site-exclusion-label" class="site-scope__action-label">Allow Auto-mode on this site</span>
+          </span>
+        </button>
+        <p id="site-scope-hint" class="site-scope__hint" hidden>Open a supported page to manage site exclusions.</p>
       </section>
 
-      <!-- Keep site-level controls out of the popup for a simpler basic UI.
-           They remain available in the side panel settings view. -->
+      <section class="snapshot" aria-label="Quick actions">
+        <div class="snapshot__metrics">
+          <div class="counter-card" title="Issues pending review or apply">
+            <div>
+              <div class="counter-label">Pending</div>
+              <div id="count-pending" class="counter-value">0</div>
+            </div>
+          </div>
+          <div class="counter-card" title="Fixes applied in the last audit">
+            <div>
+              <div class="counter-label">Applied</div>
+              <div id="count-applied" class="counter-value">0</div>
+            </div>
+          </div>
+        </div>
+        <div class="snapshot__actions">
+          <div class="snapshot__primary">
+            <button id="primary-action" type="button" class="primary" data-action="quick-fix">Quick Fix</button>
+            <button id="secondary-action" type="button" class="secondary" data-action="scan">Scan</button>
+          </div>
+          <button id="open-panel" type="button" class="secondary snapshot__panel">Open Side Panel</button>
+        </div>
+      </section>
 
       <section id="auto-mode-education" class="popup-education" hidden aria-live="polite">
         <p class="popup-education__copy">
@@ -67,16 +101,28 @@
       </section>
 
       <section class="popup-section" aria-label="Global controls">
-        <h2 class="section-title">Auto-mode</h2>
-        <label class="toggle">
-          <input type="checkbox" id="toggle-auto-mode" />
-          <span>Enable Auto-mode (continuous fixes)</span>
-        </label>
-        <label class="toggle">
-          <input type="checkbox" id="toggle-autopilot" />
-          <span>Pause Auto-mode (all sites)</span>
-        </label>
-        <button id="open-settings" type="button" class="ghost">Settings…</button>
+        <button
+          id="auto-mode-section-toggle"
+          type="button"
+          class="section-expander"
+          aria-expanded="false"
+          aria-controls="auto-mode-section-body"
+        >
+          <span class="section-expander__label">Global Auto-mode</span>
+          <span id="auto-mode-summary" class="section-expander__summary">Loading…</span>
+          <span class="section-expander__chevron" aria-hidden="true"></span>
+        </button>
+        <div id="auto-mode-section-body" class="section-body" hidden>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-auto-mode" />
+            <span>Enable Auto-mode (continuous fixes)</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-autopilot" />
+            <span>Pause Auto-mode (all sites)</span>
+          </label>
+          <button id="open-settings" type="button" class="secondary">Settings…</button>
+        </div>
       </section>
     </main>
     <script type="module" src="popup.js"></script>
