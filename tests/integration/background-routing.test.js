@@ -58,8 +58,75 @@ describe("background message routing", () => {
     await flushMicrotasks();
 
     expect(sendResponse).toHaveBeenCalledWith({ ok: true });
-    expect(chromeStub.action.setBadgeBackgroundColor).toHaveBeenCalledWith({ tabId: 202, color: "#4b5563" });
-    expect(chromeStub.action.setBadgeText).toHaveBeenCalledWith({ tabId: 202, text: "5" });
+    expect(chromeStub.action.setBadgeBackgroundColor).toHaveBeenLastCalledWith({ tabId: 202, color: "#f59e0b" });
+    expect(chromeStub.action.setBadgeText).toHaveBeenLastCalledWith({ tabId: 202, text: "10" });
+    expect(chromeStub.action.setTitle).toHaveBeenLastCalledWith({ tabId: 202, title: "AltSpark: 10 findings (5 pending)" });
+  });
+
+  it("shows applied counts in green once automation completes", async () => {
+    const sendResponse = vi.fn();
+
+    const tabId = 12303;
+
+    chromeStub.runtime.onMessage.dispatch(
+      {
+        type: "a11y-copy-helper:state-update",
+        state: { auditInProgress: false, automation: { attempted: true, executed: true } },
+      },
+      { tab: { id: tabId } },
+      vi.fn(),
+    );
+
+    chromeStub.runtime.onMessage.dispatch(
+      {
+        type: "a11y-copy-helper:issue-counts",
+        counts: { total: 6, pending: 0, applied: 6, autoApplied: 6 },
+        reason: "auto",
+        auditId: "run-1",
+      },
+      { tab: { id: tabId, url: "https://example.com" } },
+      sendResponse,
+    );
+
+    await flushMicrotasks();
+
+    expect(sendResponse).toHaveBeenCalledWith({ ok: true });
+    expect(chromeStub.action.setBadgeBackgroundColor).toHaveBeenLastCalledWith({ tabId, color: "#16a34a" });
+    expect(chromeStub.action.setBadgeText).toHaveBeenLastCalledWith({ tabId, text: "6" });
+    expect(chromeStub.action.setTitle).toHaveBeenLastCalledWith({ tabId, title: "AltSpark: applied 6 fixes" });
+  });
+
+  it("captures partial auto-apply by showing green badge with applied/total tooltip", async () => {
+    const sendResponse = vi.fn();
+
+    const tabId = 12404;
+
+    chromeStub.runtime.onMessage.dispatch(
+      {
+        type: "a11y-copy-helper:state-update",
+        state: { auditInProgress: false, automation: { attempted: true, executed: true } },
+      },
+      { tab: { id: tabId } },
+      vi.fn(),
+    );
+
+    chromeStub.runtime.onMessage.dispatch(
+      {
+        type: "a11y-copy-helper:issue-counts",
+        counts: { total: 5, pending: 2, applied: 3, autoApplied: 3 },
+        reason: "auto",
+        auditId: "run-2",
+      },
+      { tab: { id: tabId, url: "https://example.com" } },
+      sendResponse,
+    );
+
+    await flushMicrotasks();
+
+    expect(sendResponse).toHaveBeenCalledWith({ ok: true });
+    expect(chromeStub.action.setBadgeBackgroundColor).toHaveBeenLastCalledWith({ tabId, color: "#16a34a" });
+    expect(chromeStub.action.setBadgeText).toHaveBeenLastCalledWith({ tabId, text: "3" });
+    expect(chromeStub.action.setTitle).toHaveBeenLastCalledWith({ tabId, title: "AltSpark: applied 3/5 fixes" });
   });
 
   it("relays popup audit requests to the content script", async () => {

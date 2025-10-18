@@ -320,11 +320,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     recordAuditTelemetry(tabId, message.state, message.reason);
     updateBadge(tabId);
-    if (inProgress) {
-      chrome.action.setTitle({ tabId, title: "AltSpark: audit running…" }).catch(() => {});
-    } else {
-      chrome.action.setTitle({ tabId, title: "AltSpark" }).catch(() => {});
-    }
     return false;
   }
   if (message.type === "a11y-copy-helper:ready" && sender.tab?.id != null) {
@@ -637,24 +632,83 @@ function buildCountSignature(counts = {}) {
     .join('|');
 }
 
-function updateBadge(tabId) {
-  if (runningTabs.has(tabId)) {
-    chrome.action.setBadgeBackgroundColor({ tabId, color: "#f59e0b" }).catch(() => {}); // amber
-    chrome.action.setBadgeText({ tabId, text: "…" }).catch(() => {});
-    return;
+function formatBadgeNumber(value, options = {}) {
+  const { allowZero = false } = options;
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) {
+    return "";
   }
+  if (num === 0 && !allowZero) {
+    return "";
+  }
+  return String(Math.min(9999, Math.round(num)));
+}
+
+function updateBadge(tabId) {
   const counts = tabIssueCounts.get(tabId);
-  const pending = counts?.pending || 0;
-  const text = pending > 0 ? String(Math.min(pending, 9999)) : "";
+  const automation = tabAutomationState.get(tabId);
   const autoModeEnabled = Boolean(cachedSettings?.autoModeEnabled);
   const autoModePaused = Boolean(cachedSettings?.autoApplyPaused) || Boolean(cachedSettings?.extensionPaused);
   const tabAutoEnabled = autoTabs.has(tabId);
-  let badgeColor = "#4b5563";
-  if (autoModeEnabled && !autoModePaused) {
-    badgeColor = tabAutoEnabled ? "#2563eb" : "#6b7280";
+  const running = runningTabs.has(tabId);
+
+  let badgeColor = null;
+  let badgeText = "";
+  let title = "AltSpark";
+
+  if (running) {
+    const total = Number.isFinite(counts?.total) ? counts.total : null;
+    if (total != null) {
+      badgeText = formatBadgeNumber(total, { allowZero: true });
+      title = total > 0 ? `AltSpark: auditing (${total})` : "AltSpark: auditing…";
+    } else {
+      badgeText = "…";
+      title = "AltSpark: audit running…";
+    }
+    badgeColor = "#f59e0b";
+  } else if (counts) {
+    const total = counts.total;
+    const pending = counts.pending;
+    const applied = counts.autoApplied > 0 ? counts.autoApplied : counts.applied;
+    const automationExecuted = Boolean(automation?.executed || counts.autoApplied > 0);
+
+    if (automationExecuted && total > 0) {
+      const appliedText = formatBadgeNumber(applied, { allowZero: true }) || "0";
+      badgeText = appliedText;
+      badgeColor = "#16a34a";
+      if (pending > 0) {
+        title = `AltSpark: applied ${applied}/${total} fixes`;
+      } else {
+        title = `AltSpark: applied ${applied} fixes`;
+      }
+    } else if (pending > 0 && total > 0) {
+      badgeText = formatBadgeNumber(total);
+      badgeColor = "#f59e0b";
+      title =
+        pending < total
+          ? `AltSpark: ${total} findings (${pending} pending)`
+          : `AltSpark: ${total} findings`;
+    } else if (total > 0 && applied > 0) {
+      badgeText = formatBadgeNumber(applied);
+      badgeColor = "#2563eb";
+      title = `AltSpark: ${applied} fixes applied`;
+    }
   }
+
+  if (!badgeColor) {
+    if (autoModeEnabled && !autoModePaused) {
+      badgeColor = tabAutoEnabled ? "#2563eb" : "#6b7280";
+      if (tabAutoEnabled) {
+        title = "AltSpark: auto-mode ready";
+      }
+    } else {
+      badgeColor = "#4b5563";
+    }
+  }
+
   chrome.action.setBadgeBackgroundColor({ tabId, color: badgeColor }).catch(() => {});
-  chrome.action.setBadgeText({ tabId, text }).catch(() => {});
+  chrome.action.setBadgeText({ tabId, text: badgeText }).catch(() => {});
+  chrome.action.setTitle({ tabId, title }).catch(() => {});
 }
 
 function clearTabState(tabId) {

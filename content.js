@@ -839,6 +839,14 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
   function createAutoRunner(scope = "page") {
     return {
       scope,
+      ensureActive() {
+        if (this.disposed) {
+          return;
+        }
+        if (!this.observer) {
+          this.observe();
+        }
+      },
       observer: null,
       timeoutId: null,
       disposed: false,
@@ -865,9 +873,11 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
           }
         }
       },
-      start() {
+      start({ immediate = true } = {}) {
         this.disposed = false;
-        this.run("auto-initial");
+        if (immediate) {
+          this.run("auto-initial");
+        }
         this.observe();
       },
       observe() {
@@ -987,6 +997,10 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
       return;
     }
     if (currentSettings?.powerSaverMode) {
+      return;
+    }
+    if (autoRunner && autoRunner.scope === scope && !autoRunner.disposed) {
+      autoRunner.ensureActive();
       return;
     }
     if (autoRunner) {
