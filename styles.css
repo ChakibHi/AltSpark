@@ -1,5 +1,5 @@
 /* Shared styles for popup, side panel, and overlay */
-:host,
+
 :root {
   color-scheme: dark;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -41,12 +41,6 @@
   --a11y-surface-muted: rgba(230, 234, 240, 0.08);
 }
 
-.popup-counters {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-}
-
 .counter-card {
   position: relative;
   display: flex;
@@ -71,15 +65,9 @@
   color: var(--a11y-text-primary);
 }
 
-.popup-actions button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .popup-panel,
   .counter-card,
-  .popup-actions button,
   .panel-action,
   .issue-card,
   .issue-buttons button,
@@ -446,17 +434,6 @@
   margin: 0;
 }
 
-.a11y-copy-helper-heading-preview {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #fef3c7;
-  color: #9a3412;
-  font-size: 12px;
-  border: 1px solid #fbbf24;
-}
-
 .a11y-copy-helper-dock {
   position: fixed;
   bottom: 20px;
@@ -493,48 +470,6 @@
   border: 1px solid #fdba74;
   border-radius: 8px;
   padding: 6px 8px;
-}
-
-
-
-
-
-.panel-card {
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 18px;
-  padding: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
-  backdrop-filter: blur(12px);
-}
-
-.counts-card {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-}
-
-.count-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.2);
-}
-
-.count-label {
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: #4c51bf;
-}
-
-.count-value {
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: #1e3a8a;
 }
 
 .panel-actions {
@@ -584,21 +519,6 @@
   margin: 0;
   font-size: 0.85rem;
   color: #475569;
-}
-
-.panel-issues {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.issue-entries {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
 }
 
 .settings-form .toggle {
@@ -775,25 +695,6 @@ body.popup-body {
   letter-spacing: 0.04em;
 }
 
-.popup-message {
-  min-height: 16px;
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.popup-message[data-tone="warning"] {
-  color: var(--accent-warning);
-}
-
-.popup-message[data-tone="error"] {
-  color: var(--accent-danger);
-}
-
-.popup-message[data-tone="success"] {
-  color: var(--accent-success);
-}
-
 .status-banner {
   display: flex;
   flex-direction: column;
@@ -940,11 +841,6 @@ body.popup-body {
   color: rgba(167, 176, 190, 0.55);
 }
 
-.site-scope__icon-slot svg {
-  width: 20px;
-  height: 20px;
-}
-
 .site-scope__copy {
   display: flex;
   flex-direction: column;
@@ -1019,11 +915,6 @@ body.popup-body {
 }
 
 /* Popup (dark) action sizing: smaller, denser buttons */
-.popup-panel .popup-actions button {
-  padding: 6px 10px;
-  border-radius: 9px;
-  font-size: 12px;
-}
 
 /* Popup counters: high-contrast on dark */
 .popup-panel .counter-card {
@@ -1077,11 +968,6 @@ body.popup-body {
   margin: 0 2px;
 }
 
-.popup-findings {
-  display: flex;
-  align-items: center;
-}
-
 .state-chip {
   display: inline-flex;
   align-items: center;
@@ -1108,16 +994,6 @@ body.popup-body {
 .state-chip[data-tone="neutral"] {
   background: rgba(230, 234, 240, 0.08);
   color: var(--text-secondary);
-}
-
-.popup-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.popup-actions button {
-  flex: 1 1 0;
 }
 
 .popup-section {
@@ -1216,12 +1092,6 @@ body.popup-body {
   transition: transform 0.2s ease;
 }
 
-.section-expander__chevron svg {
-  display: block;
-  width: 12px;
-  height: 12px;
-}
-
 .section-expander[aria-expanded="true"] .section-expander__chevron {
   transform: rotate(180deg);
 }
@@ -1256,25 +1126,6 @@ body.popup-body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.popup-section__header {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.section-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.section-subtitle {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-secondary);
 }
 
 /* Generic toggle (shared); override below for popup */
@@ -1315,7 +1166,7 @@ label.toggle input[type="checkbox"]:disabled ~ span {
   color: rgba(167, 176, 190, 0.6);
 }
 
-label.toggle.toggle--disabled,
+
 label.toggle input[type="checkbox"]:disabled {
   cursor: not-allowed;
 }
@@ -1378,12 +1229,6 @@ button.ghost:not(:disabled):hover {
   color: var(--text-primary);
 }
 
-button[data-loading="true"] {
-  position: relative;
-  pointer-events: none;
-  color: rgba(230, 234, 240, 0.8);
-}
-
 button.has-icon {
   display: flex;
   align-items: center;
@@ -1397,27 +1242,8 @@ button.has-icon .button-icon {
   justify-content: center;
 }
 
-button.has-icon .button-icon svg {
-  width: 1.1em;
-  height: 1.1em;
-}
-
 button.has-icon .button-label {
   display: inline-block;
-}
-
-button[data-loading="true"]::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  right: 16px;
-  width: 14px;
-  height: 14px;
-  margin-top: -7px;
-  border-radius: 50%;
-  border: 2px solid rgba(230, 234, 240, 0.35);
-  border-top-color: rgba(230, 234, 240, 0.9);
-  animation: popup-spin 0.9s linear infinite;
 }
 
 /* Side panel compact sizing */
@@ -1785,10 +1611,6 @@ button[data-loading="true"]::after {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.finding-card[data-status="applied"] {
-  border-color: rgba(52, 199, 89, 0.4);
-}
-
 .finding-card__surface {
   display: flex;
   flex-direction: column;
@@ -1812,16 +1634,6 @@ button[data-loading="true"]::after {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-}
-
-.finding-chip--safe {
-  background: rgba(29, 111, 232, 0.2);
-  color: var(--accent-safe);
-}
-
-.finding-chip--review {
-  background: rgba(249, 171, 0, 0.2);
-  color: var(--accent-review);
 }
 
 .finding-card__title h3 {
@@ -2056,12 +1868,6 @@ button[data-loading="true"]::after {
   line-height: 0;
   pointer-events: none;
   transition: transform 0.2s ease;
-}
-
-.capabilities-toggle__chevron svg {
-  display: block;
-  width: 12px;
-  height: 12px;
 }
 
 .capabilities-toggle[data-state="downloading"] .capabilities-toggle__chevron {
