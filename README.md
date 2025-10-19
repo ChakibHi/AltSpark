@@ -8,12 +8,12 @@ A Chrome MV3 extension that audits any page or text selection for copy-level acc
 - Auto-mode continuous scanning with automatic fixes (opt-in).
 - Inline activation prompt ensures Chrome's on-device AI models get the required user gesture once per page.
 - Managed AI lifecycle unloads on-device models after short idle periods to save memory.
-
+- Condensed popup with collapsible sections, Lucide chevrons, and clearer global controls so key actions stay above the fold.
 - Audit any tab or highlighted selection via context menus or the `Ctrl/Cmd+Shift+L` shortcut.
-- Lightweight popup shows live finding counts, lifetime totals, and pause toggles, with one-click access to the side panel.
-- Side panel groups findings for images, links, and headings with Apply/Copy/Ignore actions, plus inline settings that sync instantly.
+- Side panel now features compact tabs, live type counters, and polished chips for quickly filtering images, links, and headings.
 - On-device AI (LanguageDetector, Summarizer, Translator, Writer fallback) tailors suggestions to the detected language and tone.
 - Multimodal image descriptions use Chrome's LanguageModel to propose alt text when photos lack descriptions.
+- On-demand "Describe this image" context menu renders a floating overlay with copy-to-clipboard controls and optional translation into the user’s preferred language.
 - Badge, lifetime metrics, auto-apply safe fixes, and per-site pause/whitelist controls keep automation under your control.
 
 ## Accessibility Coverage
@@ -34,7 +34,8 @@ A Chrome MV3 extension that audits any page or text selection for copy-level acc
 
 1. Load the unpacked extension via `chrome://extensions` (enable Developer Mode, choose the `a11y-copy-helper` folder).
 2. Right-click any page or highlighted text and pick **AltSpark: Audit page** or **AltSpark: Audit selection**, or use the keyboard shortcut.
-3. Review findings in the side panel or overlay, apply safe changes instantly, copy suggestions, or ignore items that do not apply.
+3. Need a one-off alt description? Right-click the target image and choose **AltSpark: Describe this image** to open the quick overlay.
+4. Review findings in the side panel or overlay, apply safe changes instantly, copy suggestions, or ignore items that do not apply.
 
 ## Manual testing page
 
@@ -56,13 +57,13 @@ A Chrome MV3 extension that audits any page or text selection for copy-level acc
                                    (languageDetector, summarizer, translator, languageModel, writer)
 ```
 
-1. **Auto-mode or user triggers an audit** - background requests now come from Auto-mode (when enabled) or from the popup, side panel, context menu, or shortcut. The background service worker ensures the content script is injected and relays the audit request.
+1. **Auto-mode or user triggers an audit** - background requests now come from Auto-mode (when enabled) or from the popup, side panel, context menu, or shortcut. The targeted **Describe this image** entry piggybacks on the same messaging layer to spin up a lightweight, per-image run without touching other findings.
 2. **Content script runs the Auditor** - it gathers page context, normalises copy, and calls into the managed AI client. Auto-mode reuses this pipeline to apply safe fixes incrementally, publish live counts, and free idle models.
 3. **AIClient talks to Chrome AI APIs** -
    - `chrome.ai.languageDetector` determines language and confidence.
    - `chrome.ai.summarizer` condenses nearby text so headings and links get better prompts.
    - `chrome.ai.translator` offers alternative wording in the user's preferred language when needed.
-   - `chrome.ai.languageModel` handles multimodal prompts to describe images and bootstrap accurate alt text.
+   - `chrome.ai.languageModel` handles multimodal prompts to describe images and bootstrap accurate alt text, including per-image overlays.
    - `chrome.ai.writer` (with a `languageModel` fallback) rewrites phrases to be clearer and more accessible.
 4. **Findings flow back through the background** - the content script registers issues, updates counts, and shares them with the background, which keeps the badge, metrics, and site preferences in sync.
 5. **UI surfaces stay in sync** - the popup and side panel query the background for status, apply/pause automation, and dispatch actions (apply, ignore, revert) back to the content script.
