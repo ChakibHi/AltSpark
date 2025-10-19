@@ -16,6 +16,14 @@ A Chrome MV3 extension that audits any page or text selection for copy-level acc
 - Multimodal image descriptions use Chrome's LanguageModel to propose alt text when photos lack descriptions.
 - Badge, lifetime metrics, auto-apply safe fixes, and per-site pause/whitelist controls keep automation under your control.
 
+## Accessibility Coverage
+
+| Targeted Area | What AltSpark Checks | Standards & Guidance |
+| --- | --- | --- |
+| **Images** - missing, vague, or overly long alt text | Spots empty or placeholder alt text, rewrites verbose descriptions, and marks decorative images so assistive tech can safely ignore them. | <ul><li><a href="https://www.w3.org/TR/WCAG21/#non-text-content">WCAG 2.1 SC 1.1.1 Non-text Content (Level A)</a></li><li><a href="https://www.w3.org/WAI/tutorials/images/decision-tree/">W3C Images Tutorial: Alt Decision Tree</a></li><li><a href="https://accessible.canada.ca/creating-accessibility-standards/canasc-en-301-5492024-accessibility-requirements-ict-products-and-services/9-web#toc3">EN 301 549 v3.2.1 §9.1.1.1 (Text alternatives)</a></li><li><a href="https://digital.va.gov/section-508/checklists/authoring-tools/">Section 508 E205.4 (WCAG 2 adoption)</a></li></ul> |
+| **Links** - ambiguous or context-dependent labels | Flags phrases like "click here" and proposes clearer link text or `aria-label` so destinations are obvious before activation. | <ul><li><a href="https://www.w3.org/TR/WCAG21/#link-purpose-in-context">WCAG 2.1 SC 2.4.4 Link Purpose (In Context)</a></li><li><a href="https://www.w3.org/TR/WCAG21/#link-purpose-link-only">WCAG 2.1 SC 2.4.9 Link Purpose (Link Only)</a></li><li><a href="https://accessible.canada.ca/creating-accessibility-standards/canasc-en-301-5492024-accessibility-requirements-ict-products-and-services/9-web#toc9">EN 301 549 v3.2.1 §9.2.4.4 (Link purpose)</a></li><li><a href="https://digital.va.gov/section-508/checklists/authoring-tools/">Section 508 E205.4 (WCAG 2 adoption)</a></li></ul> |
+| **Headings** - generic wording, all caps, or excessive length | Identifies headings that are hard to scan, drafts concise title-case alternatives, and keeps previews inline for manual review. | <ul><li><a href="https://www.w3.org/TR/WCAG21/#headings-and-labels">WCAG 2.1 SC 2.4.6 Headings and Labels</a></li><li><a href="https://www.w3.org/TR/WCAG21/#section-headings">WCAG 2.1 SC 2.4.10 Section Headings</a></li><li><a href="https://accessible.canada.ca/creating-accessibility-standards/canasc-en-301-5492024-accessibility-requirements-ict-products-and-services/9-web#toc9">EN 301 549 v3.2.1 §9.2.4.6/§9.2.4.10 (Headings)</a></li><li><a href="https://digital.va.gov/section-508/checklists/authoring-tools/">Section 508 E205.4 (WCAG 2 adoption)</a></li><li><a href="https://accessibility.huit.harvard.edu/typography">Harvard Digital Accessibility: Enhance Typography for Legibility</a></li></ul> |
+
 ## Usage
 
 **Quick Start**
