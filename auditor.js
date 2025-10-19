@@ -718,6 +718,39 @@ export class Auditor {
   }
 }
 
+export async function suggestAltForImage(aiClient, settings = {}, imageElement, options = {}) {
+  if (!aiClient || !imageElement) {
+    return null;
+  }
+  const target =
+    imageElement.tagName === "IMG"
+      ? imageElement
+      : typeof imageElement.closest === "function"
+        ? imageElement.closest("img")
+        : null;
+  if (!target || target.tagName !== "IMG") {
+    return null;
+  }
+  const auditor = new Auditor(aiClient, settings || {});
+  const hintSet = new Set([target]);
+  const preferredLanguage =
+    typeof options.language === "string" && options.language
+      ? options.language
+      : resolveUserLanguage(settings || {});
+  try {
+    const result = await auditor.auditImages("page", null, preferredLanguage || "en", hintSet, 1);
+    if (result?.issues?.length) {
+      return result.issues[0];
+    }
+    return null;
+  } catch (error) {
+    if (DEBUG_AUDITOR_LOGGING) {
+      console.warn("[AltSpark] suggestAltForImage failed", error);
+    }
+    return null;
+  }
+}
+
 // Build a short summary block for the AI when describing the page
 function generateSummaryContext(scope, range) {
   if (scope === "selection" && range) {

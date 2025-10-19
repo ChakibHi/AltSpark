@@ -1,0 +1,6 @@
+[data-altspark-quick-alt-highlight="true"] {
+  outline: 3px solid #38bdf8 !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.45) !important;
+  transition: outline 160ms ease, box-shadow 160ms ease;
+}

@@ -32,6 +32,13 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
   var activationPromptVisible = false;
   var activationPromptHideTimer = null;
   var activationStyleInjected = false;
+  var auditorModule = null;
+  var quickAltOverlay = null;
+  var quickAltOverlayPromise = null;
+  var quickAltActiveTarget = null;
+  var quickAltRequestToken = 0;
+  var lastContextMenuDetails = null;
+  var quickAltTemplatePromise = null;
 
   const AUTO_AUDIT_MIN_INTERVAL_MS = 60_000;
   const ISSUE_COUNT_DEBOUNCE_MS = 200;
@@ -40,6 +47,13 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
   const MAX_MUTATION_HINTS = 120;
   const MAX_HINT_EXPANSION = 40;
   const RELEVANT_MUTATION_SELECTOR = "img,a[href],h1,h2,h3,h4,h5,h6";
+  const QUICK_ALT_ATTRIBUTE = "data-altspark-quick-alt-highlight";
+  const QUICK_ALT_HIGHLIGHT_STYLE_ID = "altspark-quick-alt-highlight-style";
+  const QUICK_ALT_HOST_ID = "altspark-quick-alt-root";
+  const QUICK_ALT_MAX_CONTEXT_AGE = 12_000;
+  const QUICK_ALT_TEMPLATE_URL = chrome.runtime.getURL("quick-alt.html");
+  const QUICK_ALT_OVERLAY_CSS_URL = chrome.runtime.getURL("quick-alt-overlay.css");
+  const QUICK_ALT_HIGHLIGHT_CSS_URL = chrome.runtime.getURL("quick-alt-highlight.css");
 
   let issueCountsTimer = null;
   let pendingCountsMessage = null;
@@ -135,6 +149,7 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
         storageModule = storage;
         highlighterModule = highlighter;
         domUtils = dom;
+        auditorModule = auditor;
         aiClient.onProgress((event) => {
           lastProgressEvent = event || null;
           if (panelVisible) {
@@ -147,7 +162,13 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
         });
         ensureActivationMonitor();
         refreshLocalModelStatus(true).catch(() => {});
-        return { aiClient, storageModule, highlighterModule, Auditor: auditor.Auditor };
+        return {
+          aiClient,
+          storageModule,
+          highlighterModule,
+          Auditor: auditor.Auditor,
+          suggestAltForImage: auditor.suggestAltForImage,
+        };
       })
       .catch((error) => {
         modulesLoaded = null;
@@ -233,6 +254,461 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
       hideActivationPrompt(400);
     }
     return true;
+  }
+
+  function ensureQuickAltHighlightStyle() {
+    if (typeof document === "undefined") {
+      return;
+    }
+    if (document.getElementById(QUICK_ALT_HIGHLIGHT_STYLE_ID)) {
+      return;
+    }
+    const link = document.createElement("link");
+    link.id = QUICK_ALT_HIGHLIGHT_STYLE_ID;
+    link.rel = "stylesheet";
+    link.href = QUICK_ALT_HIGHLIGHT_CSS_URL;
+    (document.head || document.documentElement).appendChild(link);
+  }
+
+  function setQuickAltTarget(element) {
+    if (element && element.nodeType !== Node.ELEMENT_NODE) {
+      element = null;
+    }
+    ensureQuickAltHighlightStyle();
+    if (quickAltActiveTarget && quickAltActiveTarget !== element && quickAltActiveTarget.isConnected) {
+      quickAltActiveTarget.removeAttribute(QUICK_ALT_ATTRIBUTE);
+    }
+    quickAltActiveTarget = element && element.isConnected ? element : null;
+    if (quickAltActiveTarget) {
+      quickAltActiveTarget.setAttribute(QUICK_ALT_ATTRIBUTE, "true");
+    }
+  }
+
+  function clearQuickAltTarget() {
+    if (quickAltActiveTarget && quickAltActiveTarget.isConnected) {
+      quickAltActiveTarget.removeAttribute(QUICK_ALT_ATTRIBUTE);
+    }
+    quickAltActiveTarget = null;
+  }
+
+  function normalizeCandidateUrl(value) {
+    if (!value || typeof value !== "string") {
+      return "";
+    }
+    try {
+      const normalized = new URL(value, location.href);
+      normalized.hash = "";
+      return normalized.toString();
+    } catch (_error) {
+      return value;
+    }
+  }
+
+  function urlsRoughlyMatch(a, b) {
+    if (!a || !b) {
+      return false;
+    }
+    if (a === b) {
+      return true;
+    }
+    const first = normalizeCandidateUrl(a);
+    const second = normalizeCandidateUrl(b);
+    if (!first || !second) {
+      return a === b;
+    }
+    if (first === second) {
+      return true;
+    }
+    try {
+      const firstUrl = new URL(first);
+      const secondUrl = new URL(second);
+      firstUrl.search = "";
+      secondUrl.search = "";
+      firstUrl.hash = "";
+      secondUrl.hash = "";
+      return firstUrl.toString() === secondUrl.toString();
+    } catch (_error) {
+      return first === second;
+    }
+  }
+
+  function resolveContextImageTarget(message) {
+    if (typeof document === "undefined") {
+      return null;
+    }
+    const now = Date.now();
+    const srcHint = typeof message?.srcUrl === "string" ? message.srcUrl : "";
+    if (lastContextMenuDetails) {
+      const withinWindow = now - lastContextMenuDetails.timestamp < QUICK_ALT_MAX_CONTEXT_AGE;
+      const candidate = lastContextMenuDetails.element;
+      if (withinWindow && candidate && candidate.isConnected) {
+        if (!srcHint || urlsRoughlyMatch(lastContextMenuDetails.src, srcHint)) {
+          return candidate;
+        }
+      }
+    }
+    if (srcHint) {
+      const normalized = normalizeCandidateUrl(srcHint);
+      if (normalized) {
+        const images = document.images || [];
+        for (const img of images) {
+          if (!img || !img.isConnected) {
+            continue;
+          }
+          const candidateSrc = normalizeCandidateUrl(img.currentSrc || img.src || "");
+          if (candidateSrc && urlsRoughlyMatch(candidateSrc, normalized)) {
+            return img;
+          }
+        }
+      }
+    }
+  if (
+      lastContextMenuDetails &&
+      lastContextMenuDetails.element &&
+      lastContextMenuDetails.element.isConnected &&
+      now - lastContextMenuDetails.timestamp < QUICK_ALT_MAX_CONTEXT_AGE * 2
+    ) {
+     return lastContextMenuDetails.element;
+   }
+   return null;
+ }
+
+  async function loadQuickAltTemplate() {
+    if (quickAltTemplatePromise) {
+      return quickAltTemplatePromise;
+    }
+    quickAltTemplatePromise = fetch(QUICK_ALT_TEMPLATE_URL, { cache: "no-cache" })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load quick-alt template (${response.status})`);
+        }
+        return response.text();
+      })
+      .catch((error) => {
+        quickAltTemplatePromise = null;
+        throw error;
+      });
+    return quickAltTemplatePromise;
+  }
+
+  async function createQuickAltOverlay() {
+    if (typeof document === "undefined") {
+      return null;
+    }
+    let templateHtml;
+    try {
+      templateHtml = await loadQuickAltTemplate();
+    } catch (error) {
+      console.warn("[AltSpark] Failed to load quick-alt template", error);
+      return null;
+    }
+    let host = document.getElementById(QUICK_ALT_HOST_ID);
+    if (!host) {
+      host = document.createElement("div");
+      host.id = QUICK_ALT_HOST_ID;
+      document.documentElement.appendChild(host);
+    }
+    const shadow = host.shadowRoot || host.attachShadow({ mode: "open" });
+    shadow.innerHTML = "";
+
+    const styleLink = document.createElement("link");
+    styleLink.rel = "stylesheet";
+    styleLink.href = QUICK_ALT_OVERLAY_CSS_URL;
+    shadow.appendChild(styleLink);
+
+    const template = document.createElement("template");
+    template.innerHTML = templateHtml.trim();
+    const cardElement = template.content.firstElementChild
+      ? template.content.firstElementChild.cloneNode(true)
+      : null;
+    if (!cardElement) {
+      return null;
+    }
+    const card = shadow.appendChild(cardElement);
+
+    const statusText = card.querySelector("[data-role='status-text']");
+    const spinnerEl = card.querySelector("[data-role='spinner']");
+    const previewWrap = card.querySelector("[data-role='preview']");
+    const previewImg = card.querySelector("[data-role='preview-img']");
+    const resultBlock = card.querySelector("[data-role='result']");
+    const altTextEl = card.querySelector("[data-role='alt']");
+    const metaEl = card.querySelector("[data-role='meta']"); 
+    const copyButton = card.querySelector("[data-action='copy']");
+    const closeButton = card.querySelector("[data-action='close']");
+
+    const defaultCopyLabel = "Copy alt text";
+    copyButton.textContent = defaultCopyLabel;
+    copyButton.disabled = true;
+
+    const state = {
+      requestId: 0,
+      text: "",
+    };
+    let copyResetTimer = null;
+
+    function resetCopyState() {
+      if (copyResetTimer) {
+        clearTimeout(copyResetTimer);
+        copyResetTimer = null;
+      }
+      copyButton.classList.remove("is-copied");
+      copyButton.textContent = defaultCopyLabel;
+    }
+
+    function markCopied() {
+      resetCopyState();
+      copyButton.classList.add("is-copied");
+      copyButton.textContent = "Copied!";
+      copyResetTimer = setTimeout(() => {
+        copyButton.classList.remove("is-copied");
+        copyButton.textContent = defaultCopyLabel;
+        copyResetTimer = null;
+      }, 1600);
+    }
+
+    function fallbackCopy(text) {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        textarea.style.pointerEvents = "none";
+        const root = document.body || document.documentElement;
+        root.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+        markCopied();
+      } catch (_error) {
+        resetCopyState();
+      }
+    }
+
+    function setSpinnerActive(active) {
+      if (!spinnerEl) {
+        return;
+      }
+      if (active) {
+        spinnerEl.style.display = "";
+        card.classList.add("is-loading");
+      } else {
+        spinnerEl.style.display = "none";
+        card.classList.remove("is-loading");
+      }
+    }
+
+    function setStatusMessage(text) {
+      if (typeof text === "string" && text.trim()) {
+        statusText.textContent = text.trim();
+      }
+    }
+
+    const overlayApi = {
+      showLoading(options = {}) {
+        state.requestId = options.requestId || 0;
+        state.text = "";
+        resetCopyState();
+        copyButton.disabled = true;
+        resultBlock.hidden = true;
+        altTextEl.textContent = "";
+        metaEl.hidden = true;
+        metaEl.textContent = "";
+        const previewUrl = options.previewUrl || "";
+        if (previewUrl) {
+          previewWrap.hidden = false;
+          previewImg.src = previewUrl;
+        } else {
+          previewWrap.hidden = true;
+          previewImg.removeAttribute("src");
+        }
+        const statusMessage = options.status || "Drafting a fresh alt description…";
+        setStatusMessage(statusMessage);
+        setSpinnerActive(true);
+        card.classList.remove("is-ready", "is-error");
+        card.classList.add("is-visible");
+        card.setAttribute("aria-hidden", "false");
+      },
+      setStatus(options = {}) {
+        if (options.requestId && options.requestId !== state.requestId) {
+          return;
+        }
+        if (typeof options.text === "string" && options.text.trim()) {
+          setStatusMessage(options.text);
+        }
+        const spinner = options.spinner !== false;
+        setSpinnerActive(spinner);
+        if (!spinner) {
+          card.classList.remove("is-loading");
+        } else {
+          card.classList.add("is-loading");
+        }
+        card.classList.remove("is-error");
+        card.classList.remove("is-ready");
+        card.classList.add("is-visible");
+        card.setAttribute("aria-hidden", "false");
+      },
+      showResult(options = {}) {
+        if (options.requestId && options.requestId !== state.requestId) {
+          return;
+        }
+        const text = typeof options.text === "string" ? options.text.trim() : "";
+        state.text = text;
+        resetCopyState();
+        copyButton.disabled = !text;
+        if (!text) {
+          setStatusMessage("No description available for this image.");
+          setSpinnerActive(false);
+          card.classList.add("is-visible", "is-error");
+          metaEl.hidden = true;
+          resultBlock.hidden = true;
+          return;
+        }
+        altTextEl.textContent = text;
+        resultBlock.hidden = false;
+        const statusMessage = options.status || "Alt description ready";
+        setStatusMessage(statusMessage);
+        const meta = typeof options.meta === "string" && options.meta.trim() ? options.meta.trim() : "";
+        if (meta) {
+          metaEl.hidden = false;
+          metaEl.textContent = meta;
+        } else {
+          metaEl.hidden = true;
+          metaEl.textContent = "";
+        }
+        setSpinnerActive(false);
+        card.classList.remove("is-error");
+        card.classList.add("is-visible", "is-ready");
+        card.setAttribute("aria-hidden", "false");
+      },
+      showError(options = {}) {
+        if (options.requestId && options.requestId !== state.requestId) {
+          return;
+        }
+        const message = typeof options.message === "string" && options.message.trim()
+          ? options.message.trim()
+          : "We couldn\u2019t draft an alt description. Try again after interacting with the page.";
+        setStatusMessage(message);
+        copyButton.disabled = true;
+        resetCopyState();
+        resultBlock.hidden = true;
+        altTextEl.textContent = "";
+        metaEl.hidden = true;
+        metaEl.textContent = "";
+        setSpinnerActive(false);
+        card.classList.remove("is-ready");
+        card.classList.add("is-visible", "is-error");
+        card.setAttribute("aria-hidden", "false");
+      },
+      hide() {
+        resetCopyState();
+        state.requestId = 0;
+        state.text = "";
+        copyButton.disabled = true;
+        resultBlock.hidden = true;
+        altTextEl.textContent = "";
+        metaEl.hidden = true;
+        metaEl.textContent = "";
+        previewWrap.hidden = true;
+        previewImg.removeAttribute("src");
+        setSpinnerActive(false);
+        card.classList.remove("is-visible", "is-ready", "is-error");
+        card.setAttribute("aria-hidden", "true");
+        clearQuickAltTarget();
+      },
+      getText() {
+        return state.text;
+      },
+    };
+
+    copyButton.addEventListener("click", () => {
+      if (!state.text) {
+        return;
+      }
+      const clipboard = navigator?.clipboard;
+      if (clipboard && typeof clipboard.writeText === "function") {
+        clipboard.writeText(state.text).then(() => {
+          markCopied();
+        }).catch(() => fallbackCopy(state.text));
+      } else {
+        fallbackCopy(state.text);
+      }
+    });
+
+    closeButton.addEventListener("click", () => {
+      overlayApi.hide();
+    });
+
+    const handleQuickAltKeydown = (event) => {
+      if (event.key === "Escape") {
+        overlayApi.hide();
+      }
+    };
+    window.addEventListener("keydown", handleQuickAltKeydown, true);
+
+    return overlayApi;
+  }
+
+  async function ensureQuickAltOverlay() {
+    if (quickAltOverlay) {
+      return quickAltOverlay;
+    }
+    if (quickAltOverlayPromise) {
+      return quickAltOverlayPromise;
+    }
+    quickAltOverlayPromise = createQuickAltOverlay().then((overlay) => {
+      if (overlay) {
+        quickAltOverlay = overlay;
+      }
+      return quickAltOverlay;
+    }).finally(() => {
+      quickAltOverlayPromise = null;
+    });
+    return quickAltOverlayPromise;
+  }
+
+  function resolveLanguageLabel(code) {
+    if (!code || typeof code !== "string") {
+      return null;
+    }
+    const normalized = code.toLowerCase();
+    if (typeof Intl !== "undefined" && typeof Intl.DisplayNames === "function") {
+      try {
+        const display = new Intl.DisplayNames([navigator?.language || "en"], { type: "language" });
+        const label = display.of(normalized);
+        if (label) {
+          return label;
+        }
+      } catch (_error) {
+        // ignore fallback
+      }
+    }
+    if (normalized.length === 2) {
+      return normalized.toUpperCase();
+    }
+    return code;
+  }
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("contextmenu", (event) => {
+      try {
+        const target = event.target && event.target.nodeType === Node.ELEMENT_NODE ? event.target : null;
+        const img = target ? target.closest("img") : null;
+        if (img) {
+          lastContextMenuDetails = {
+            element: img,
+            timestamp: Date.now(),
+            src: img.currentSrc || img.src || "",
+            alt: img.getAttribute("alt") || "",
+          };
+        } else {
+          lastContextMenuDetails = null;
+        }
+      } catch (_error) {
+        lastContextMenuDetails = null;
+      }
+    }, true);
   }
 
   function readUserActivationState() {
@@ -1258,6 +1734,139 @@ if (globalThis.__ALTSPARK_CONTENT_LOADED__) {
       runAudit({ scope: message.scope || "page" })
         .then(() => sendResponse({ ok: true }))
         .catch((error) => sendResponse({ ok: false, error: error?.message }));
+      return true;
+    }
+    if (message.type === "a11y-copy-helper:describe-image") {
+      (async () => {
+        let overlay = null;
+        try {
+          overlay = await ensureQuickAltOverlay();
+        } catch (overlayError) {
+          console.warn("[AltSpark] quick-alt overlay unavailable", overlayError);
+        }
+        if (!overlay) {
+          sendResponse?.({ ok: false, error: "overlay-unavailable" });
+          return;
+        }
+        const target = resolveContextImageTarget(message);
+        const requestId = ++quickAltRequestToken;
+        if (!target) {
+          clearQuickAltTarget();
+          overlay.showError({
+            requestId,
+            message: "Could not find that image. Click it once and try again.",
+          });
+          sendResponse?.({ ok: false, error: "image-not-found" });
+          return;
+        }
+        const previewUrl =
+          target.currentSrc || target.src || (typeof message?.srcUrl === "string" ? message.srcUrl : "");
+        setQuickAltTarget(target);
+        overlay.showLoading({
+          requestId,
+          previewUrl,
+          status: "Drafting description in English…",
+        });
+        try {
+          const modules = await loadModules();
+          const settings = await ensureSettings();
+          const describeSettings = { ...(settings || {}), offerTranslations: false };
+          if (aiClient?.prepareOffscreenHost) {
+            aiClient.prepareOffscreenHost({ waitForReady: false }).catch(() => {});
+          }
+          try {
+            await awaitUserActivation(12000);
+          } catch (activationError) {
+            overlay.showError({
+              requestId,
+              message:
+                activationError?.message ||
+                "Click inside the page once, then try generating the description again.",
+            });
+            sendResponse?.({ ok: false, error: "activation-required" });
+            return;
+          }
+          const baseLanguage = "en";
+          let issue = null;
+          if (modules?.suggestAltForImage) {
+            issue = await modules.suggestAltForImage(aiClient, describeSettings, target, {
+              language: baseLanguage,
+            });
+          }
+          const englishAlt = (issue?.suggestion || issue?.translatedSuggestion || "").trim();
+          if (!englishAlt) {
+            overlay.showError({
+              requestId,
+              message: "We couldn\u2019t draft an alt description. Try again in a moment.",
+            });
+            sendResponse?.({ ok: false, error: "no-suggestion" });
+            return;
+          }
+          const originalText = englishAlt;
+          const preferredLanguageRaw =
+            storageModule?.resolveUserLanguage?.(settings) ||
+            settings?.userLanguage ||
+            navigator?.language ||
+            "en";
+          const preferredLanguage =
+            typeof preferredLanguageRaw === "string" && preferredLanguageRaw.trim()
+              ? preferredLanguageRaw.trim()
+              : "en";
+          const preferredNormalized = preferredLanguage.toLowerCase();
+          const baseLabel = resolveLanguageLabel(baseLanguage) || "English";
+          let finalAlt = englishAlt;
+          let finalLanguage = baseLanguage;
+          let translationApplied = false;
+          if (preferredNormalized && !preferredNormalized.startsWith("en")) {
+            const targetLabel = resolveLanguageLabel(preferredLanguage) || preferredLanguage;
+            overlay.setStatus({
+              requestId,
+              text: `Translating to ${targetLabel}…`,
+              spinner: true,
+            });
+            try {
+              const translated = await aiClient.translateText(englishAlt, preferredLanguage, baseLanguage);
+              if (translated && translated.trim() && translated.trim() !== englishAlt) {
+                finalAlt = translated.trim();
+                finalLanguage = preferredLanguage;
+                translationApplied = true;
+              }
+            } catch (translateError) {
+              console.warn("[AltSpark] translateText failed", translateError);
+            }
+          }
+          const metaParts = [];
+          const existingAlt = (target.getAttribute("alt") || "").trim();
+          if (existingAlt && existingAlt.toLowerCase() !== finalAlt.toLowerCase()) {
+            const truncated =
+              (domUtils?.truncateText?.(existingAlt, 90, { ellipsis: "..." }) || existingAlt).trim();
+            const compact = truncated.replace(/\s+/g, " ");
+            metaParts.push(`Current alt: "${compact}"`);
+          }
+          overlay.showResult({
+            requestId,
+            text: finalAlt,
+            status: "Alt description ready",
+            meta: metaParts.join(" • "),
+          });
+          sendResponse?.({
+            ok: true,
+            alt: finalAlt,
+            translated: translationApplied ? finalAlt : null,
+            language: finalLanguage,
+            original: originalText,
+          });
+        } catch (error) {
+          console.warn("[AltSpark] describe-image failed", error);
+          overlay.showError({
+            requestId,
+            message: error?.message
+              ? error.message
+              : "Something went wrong while drafting the alt text.",
+          });
+          sendResponse?.({ ok: false, error: error?.message || "describe-failed" });
+        }
+      })();
       return true;
     }
     if (message.type === "a11y-copy-helper:get-state") {

@@ -737,7 +737,7 @@ export class AIClient {
       const languageHint = outputLanguage === "en"
         ? "Describe this image in under 125 characters."
         : `Describe this image in ${languageLabel} under 125 characters.`;
-      const instructions = `${languageHint} Focus on the primary subject and purpose. Avoid starting with "Image of".`;
+      const instructions = `${languageHint} Focus on what is clearly visible. Use plain, factual language, avoid metaphors, symbolism, or marketing language, and do not infer intent beyond the scene. Avoid starting with "Image of".`;
       // console.log("[AltSpark][describeImageWithPrompt] instructions", instructions);
       // console.log("[AltSpark][describeImageWithPrompt] sending value", imageValue);
       const response = await session.prompt(

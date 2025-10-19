@@ -13,6 +13,7 @@ import { normalizeCountMap } from "./counts.js";
 
 const MENU_SELECTION = "a11y-copy-helper-selection";
 const MENU_PAGE = "a11y-copy-helper-page";
+const MENU_IMAGE_DESCRIBE = "a11y-copy-helper-image-describe";
 const readyTabs = new Set();
 const runningTabs = new Set();
 const tabIssueCounts = new Map();
@@ -180,6 +181,11 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "AltSpark: Audit page",
     contexts: ["page"],
   });
+  chrome.contextMenus.create({
+    id: MENU_IMAGE_DESCRIBE,
+    title: "AltSpark: Describe this image",
+    contexts: ["image"],
+  });
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -194,6 +200,22 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     triggerAudit(tab.id, "page").catch((error) => {
       console.warn("[AltSpark] Context menu audit failed", error);
     });
+  } else if (info.menuItemId === MENU_IMAGE_DESCRIBE) {
+    forwardToContent(tab.id, {
+      type: "a11y-copy-helper:describe-image",
+      targetElementId: info.targetElementId ?? null,
+      srcUrl: info.srcUrl || null,
+      frameId: typeof info.frameId === "number" ? info.frameId : 0,
+      triggeredAt: Date.now(),
+    })
+      .then((response) => {
+        if (!response?.ok && response?.error) {
+          console.warn("[AltSpark] Image description request failed", response.error);
+        }
+      })
+      .catch((error) => {
+        console.warn("[AltSpark] Failed to describe image from context menu", error);
+      });
   }
 });
 

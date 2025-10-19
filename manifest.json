@@ -58,7 +58,10 @@
         "storage.js",
         "highlighter.js",
         "dom-utils.js",
-        "counts.js"
+        "counts.js",
+        "quick-alt-overlay.css",
+        "quick-alt-highlight.css",
+        "quick-alt.html"
       ],
       "matches": [
         "<all_urls>"
