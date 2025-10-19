@@ -8,45 +8,43 @@
   <body class="sidepanel-body">
     <main class="sidepanel-container" role="main">
       <header class="sidepanel-header">
-        <div class="sidepanel-header__text">
-          <h1 class="sidepanel-title">AltSpark</h1>
-          <p id="panel-site" class="panel-site">Loading active tab.</p>
-          <p class="panel-meta">
-            <span id="panel-context">This tab</span>
-            <span aria-hidden="true" class="panel-meta__divider">&bull;</span>
-            <span id="panel-audit-duration" class="panel-meta__duration">Last audit: --</span>
-          </p>
-          <p id="panel-status" class="panel-status" role="status" aria-live="polite">Preparing.</p>
-          <div id="panel-capabilities" class="capabilities-strip sidepanel-capabilities" aria-live="polite"></div>
+        <div class="sidepanel-header__row">
+          <div class="sidepanel-header__text">
+            <h1 class="sidepanel-title">AltSpark</h1>
+            <p id="panel-site" class="panel-site">Loading active tab.</p>
+          </div>
+          <span id="panel-status" class="panel-status-chip" role="status" aria-live="polite" data-tone="info">Preparing.</span>
         </div>
-        <div class="sidepanel-header-actions">
-          <button id="panel-open-popup" type="button" class="ghost">Open popup</button>
-          <button id="toolbar-scan" type="button" class="secondary">Scan</button>
-        </div>
+        <p class="panel-meta">
+          <span id="panel-context">This tab</span>
+          <span aria-hidden="true" class="panel-meta__divider">&bull;</span>
+          <span id="panel-audit-duration" class="panel-meta__duration">Last audit: --</span>
+        </p>
+        <div id="panel-capabilities" class="capabilities-strip sidepanel-capabilities" aria-live="polite"></div>
+        <nav class="sidepanel-tabs" role="tablist">
+          <button type="button" class="sidepanel-tab active" data-view="findings" role="tab" aria-selected="true">Findings</button>
+          <button type="button" class="sidepanel-tab" data-view="settings" role="tab" aria-selected="false">Settings</button>
+        </nav>
       </header>
-
-      <nav class="sidepanel-tabs" role="tablist">
-        <button type="button" class="sidepanel-tab active" data-view="findings" role="tab" aria-selected="true">Findings</button>
-        <button type="button" class="sidepanel-tab" data-view="settings" role="tab" aria-selected="false">Settings</button>
-      </nav>
 
       <section class="sidepanel-view" data-view="findings" role="tabpanel">
         <div class="sidepanel-toolbar" role="toolbar" aria-label="Findings actions">
+          <button id="toolbar-scan" type="button" class="secondary">Scan</button>
           <button id="toolbar-apply-safe" type="button" class="primary">Apply Safe fixes</button>
-          <button id="toolbar-undo" type="button" class="secondary">Undo</button>
+          <button id="toolbar-undo" type="button" class="ghost">Undo</button>
         </div>
 
         <section class="sidepanel-summary" aria-label="Summary">
           <div class="summary-chips" role="list">
-            <button type="button" class="summary-chip" data-filter="image" role="listitem">
+            <button type="button" class="summary-chip" data-filter="image" role="listitem" aria-pressed="false">
               <span class="summary-chip__label">Images</span>
               <span id="summary-image-count" class="summary-chip__count">0</span>
             </button>
-            <button type="button" class="summary-chip" data-filter="link" role="listitem">
+            <button type="button" class="summary-chip" data-filter="link" role="listitem" aria-pressed="false">
               <span class="summary-chip__label">Links</span>
               <span id="summary-link-count" class="summary-chip__count">0</span>
             </button>
-            <button type="button" class="summary-chip" data-filter="heading" role="listitem">
+            <button type="button" class="summary-chip" data-filter="heading" role="listitem" aria-pressed="false">
               <span class="summary-chip__label">Headings</span>
               <span id="summary-heading-count" class="summary-chip__count">0</span>
             </button>

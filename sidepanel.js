@@ -15,7 +15,6 @@ const dom = {
   footerApplyAll: document.getElementById('footer-apply-all'),
   revertAll: document.getElementById('footer-revert-all'),
   exportMarkdown: document.getElementById('footer-export'),
-  openPopup: document.getElementById('panel-open-popup'),
   message: document.getElementById('panel-message'),
   capabilities: document.getElementById('panel-capabilities'),
   summary: {
@@ -51,6 +50,8 @@ const ICON_MARKUP = {
   scan: getIcon("scan"),
   add: getIcon("plus"),
 };
+
+const ISSUE_FILTER_KEYS = new Set(['image', 'link', 'heading']);
 
 let currentTabId = null;
 let currentPageUrl = null;
@@ -105,11 +106,6 @@ function bindEventListeners() {
   dom.revertAll?.addEventListener('click', handleRevertAll);
   dom.undo?.addEventListener('click', handleRevertAll);
   dom.runAudit?.addEventListener('click', handleRunAudit);
-  dom.openPopup?.addEventListener('click', () => {
-    if (chrome.action?.openPopup) {
-      chrome.action.openPopup().catch(() => {});
-    }
-  });
   dom.exportMarkdown?.addEventListener('click', handleExportMarkdown);
 
   dom.summary?.chips?.forEach((chip) => {
@@ -169,6 +165,33 @@ function decorateButtonsWithIcons() {
   initializeButtonIcon(dom.exportMarkdown, 'export');
   initializeButtonIcon(dom.runAudit, 'scan');
   initializeButtonIcon(dom.siteExclusionAddButton, 'add');
+}
+
+function normalizeIssueKey(rawValue) {
+  if (rawValue == null) {
+    return '';
+  }
+  const value = String(rawValue).toLowerCase();
+  if (ISSUE_FILTER_KEYS.has(value)) {
+    return value;
+  }
+  switch (value) {
+    case 'images':
+      return 'image';
+    case 'links':
+      return 'link';
+    case 'headings':
+      return 'heading';
+    default:
+      break;
+  }
+  if (value.endsWith('s')) {
+    const singular = value.slice(0, -1);
+    if (ISSUE_FILTER_KEYS.has(singular)) {
+      return singular;
+    }
+  }
+  return '';
 }
 
 async function refreshTabContext() {
@@ -379,44 +402,76 @@ function updateSummary(state) {
     return;
   }
   const issues = Array.isArray(state?.issues) ? state.issues : [];
-  const perType = { image: 0, link: 0, heading: 0 };
+  const perType = {
+    image: { pending: 0, total: 0 },
+    link: { pending: 0, total: 0 },
+    heading: { pending: 0, total: 0 },
+  };
   for (const issue of issues) {
-    if (!issue || issue.status !== 'pending') {
+    if (!issue) {
       continue;
     }
-    const key = issue.type || issue.section;
-    if (key && Object.prototype.hasOwnProperty.call(perType, key)) {
-      perType[key] += 1;
+    const key = normalizeIssueKey(issue.type || issue.section);
+    if (!key || !Object.prototype.hasOwnProperty.call(perType, key)) {
+      continue;
+    }
+    if (issue.status !== 'ignored') {
+      perType[key].total += 1;
+    }
+    if (issue.status === 'pending') {
+      perType[key].pending += 1;
     }
   }
-  if (currentFilter !== 'all' && Object.prototype.hasOwnProperty.call(perType, currentFilter) && perType[currentFilter] === 0) {
-    currentFilter = 'all';
+  if (currentFilter !== 'all') {
+    const metrics = perType[currentFilter];
+    if (!metrics || metrics.total === 0) {
+      currentFilter = 'all';
+    }
   }
-  const totalPending = perType.image + perType.link + perType.heading;
-  if (summary.counts.image) {
-    summary.counts.image.textContent = formatNumber(perType.image);
-  }
-  if (summary.counts.link) {
-    summary.counts.link.textContent = formatNumber(perType.link);
-  }
-  if (summary.counts.heading) {
-    summary.counts.heading.textContent = formatNumber(perType.heading);
+  for (const [key, metrics] of Object.entries(perType)) {
+    const countNode = summary.counts[key];
+    if (!countNode) {
+      continue;
+    }
+    countNode.textContent = formatNumber(metrics.total);
+    countNode.dataset.pending = formatNumber(metrics.pending);
   }
   if (!issues.length) {
     summary.section.classList.add('is-empty');
     summary.chips?.forEach((chip) => {
       chip.disabled = true;
       chip.classList.remove('active');
+      chip.setAttribute('aria-pressed', 'false');
+      chip.dataset.hasPending = 'false';
     });
     currentFilter = 'all';
     return;
   }
   summary.section.classList.remove('is-empty');
   summary.chips?.forEach((chip) => {
-    const filter = chip.dataset.filter || 'all';
-    const isActive = currentFilter !== 'all' && currentFilter === filter;
+    const filterKey = normalizeIssueKey(chip.dataset.filter);
+    if (!filterKey) {
+      chip.disabled = issues.length === 0;
+      chip.classList.remove('active');
+      chip.setAttribute('aria-pressed', 'false');
+      chip.dataset.hasPending = 'false';
+      chip.removeAttribute('aria-label');
+      return;
+    }
+    const metrics = perType[filterKey] || { pending: 0, total: 0 };
+    const chipLabel = chip.querySelector('.summary-chip__label')?.textContent?.trim() || filterKey;
+    const pendingLabel = formatNumber(metrics.pending);
+    const totalLabel = formatNumber(metrics.total);
+    const ariaLabelParts = [`${chipLabel}: ${totalLabel} total`];
+    if (metrics.pending > 0) {
+      ariaLabelParts.push(`${pendingLabel} pending`);
+    }
+    chip.setAttribute('aria-label', ariaLabelParts.join(', '));
+    const isActive = currentFilter !== 'all' && currentFilter === filterKey && metrics.total > 0;
     chip.classList.toggle('active', isActive);
-    chip.disabled = false;
+    chip.setAttribute('aria-pressed', String(isActive));
+    chip.dataset.hasPending = metrics.pending > 0 ? 'true' : 'false';
+    chip.disabled = metrics.total === 0;
   });
 }
 
@@ -454,12 +509,10 @@ function updateButtons(state) {
     dom.exportMarkdown.disabled = !issuesAvailable;
   }
 
-  dom.summary?.chips?.forEach((chip) => {
-    chip.disabled = !issuesAvailable;
-  });
-
-  if (dom.openPopup) {
-    dom.openPopup.disabled = !hasTab;
+  if (!issuesAvailable) {
+    dom.summary?.chips?.forEach((chip) => {
+      chip.disabled = true;
+    });
   }
 }
 
@@ -585,15 +638,21 @@ function filterIssues(allIssues) {
   if (currentFilter === 'all') {
     return allIssues;
   }
-  return allIssues.filter((issue) => (issue?.type || issue?.section) === currentFilter);
+  return allIssues.filter((issue) => normalizeIssueKey(issue?.type || issue?.section) === currentFilter);
 }
 
 function setFilter(nextFilter) {
-  const normalized = currentFilter === nextFilter ? 'all' : nextFilter;
-  currentFilter = normalized;
+  const requested = normalizeIssueKey(nextFilter);
+  const targetFilter = requested && currentFilter !== requested ? requested : 'all';
+  currentFilter = targetFilter;
   if (currentState) {
+    const snapshotFilter = currentFilter;
     renderIssues(currentState.issues || [], currentState.automation);
     updateSummary(currentState);
+    if (currentFilter !== snapshotFilter) {
+      renderIssues(currentState.issues || [], currentState.automation);
+      updateSummary(currentState);
+    }
   }
 }
 
@@ -603,7 +662,7 @@ function updateFooterMeta(rawCounts) {
   }
   const applied = clampToNonNegativeInt(rawCounts?.applied);
   const reverted = clampToNonNegativeInt(rawCounts?.ignored);
-  dom.footerMeta.textContent = `${formatNumber(applied)} applied | ${formatNumber(reverted)} reverted`;
+  dom.footerMeta.textContent = `${formatNumber(applied)} applied • ${formatNumber(reverted)} reverted`;
 }
 
 function updateAuditDuration(ms) {
