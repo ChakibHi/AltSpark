@@ -59,11 +59,11 @@ import { getIcon } from "./icons.js";
   let refreshing = false;
   let autoModeNudgeDismissed = false;
   let autoModeSectionExpanded = false;
-  let autoModeSectionUserOverride = false;
 
   await loadAutoModeNudgeState();
   attachEventListeners();
   decorateStaticButtons();
+  setAutoModeSectionExpanded(false, { force: true });
   await refreshStatus();
 
   function attachEventListeners() {
@@ -372,7 +372,7 @@ import { getIcon } from "./icons.js";
     if (dom.autoModeSectionToggle?.disabled) {
       return;
     }
-    setAutoModeSectionExpanded(!autoModeSectionExpanded, { userInitiated: true });
+    setAutoModeSectionExpanded(!autoModeSectionExpanded);
   }
 
   function updateStatusStrip() {
@@ -471,16 +471,18 @@ import { getIcon } from "./icons.js";
     });
   }
 
-  function setAutoModeSectionExpanded(expanded, { userInitiated = false } = {}) {
-    autoModeSectionExpanded = Boolean(expanded);
+  function setAutoModeSectionExpanded(expanded, { force = false } = {}) {
+    const nextExpanded = Boolean(expanded);
+    autoModeSectionExpanded = nextExpanded;
     if (!dom.autoModeSectionToggle || !dom.autoModeSectionBody) {
       return;
     }
-    dom.autoModeSectionToggle.setAttribute("aria-expanded", autoModeSectionExpanded ? "true" : "false");
-    setElementVisibility(dom.autoModeSectionBody, autoModeSectionExpanded);
-    if (userInitiated) {
-      autoModeSectionUserOverride = true;
+    const currentlyExpanded = dom.autoModeSectionToggle.getAttribute("aria-expanded") === "true";
+    if (!force && currentlyExpanded === nextExpanded) {
+      return;
     }
+    dom.autoModeSectionToggle.setAttribute("aria-expanded", nextExpanded ? "true" : "false");
+    setElementVisibility(dom.autoModeSectionBody, nextExpanded);
   }
 
   function updateFindingsState() {
@@ -615,11 +617,6 @@ import { getIcon } from "./icons.js";
     }
 
     updateAutoModeSummary(settings);
-    if (!autoModeSectionUserOverride) {
-      const shouldExpand = hasStatus
-        && (!settings.autoModeEnabled || Boolean(settings.autoApplyPaused) || Boolean(settings.extensionPaused));
-      setAutoModeSectionExpanded(shouldExpand);
-    }
   }
 
   function syncActionButtonState(button, settings) {
@@ -784,8 +781,7 @@ import { getIcon } from "./icons.js";
       dom.autoModeSectionToggle.dataset.state = "loading";
       dom.autoModeSectionToggle.title = "Loading…";
     }
-    setAutoModeSectionExpanded(false);
-    autoModeSectionUserOverride = false;
+    setAutoModeSectionExpanded(false, { force: true });
     renderCapabilities(dom.capabilities, null);
   }
 
