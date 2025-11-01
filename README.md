@@ -38,18 +38,13 @@ Option 1:
 - Add the Extension directly from the [Chrome Extension Marketplace](https://chromewebstore.google.com/detail/altspark/kgnjimkhggfgadbepjibbkpoaflnplch)
 
 Option 2:
-1. Load the unpacked extension via `chrome://extensions` (enable Developer Mode, choose the `AltSpark` folder).
-2. Right-click any page or highlighted text and pick **AltSpark: Audit page** or **AltSpark: Audit selection**, or use the keyboard shortcut.
-3. Need a one-off alt description? Right-click the target image and choose **AltSpark: Describe this image** to open the quick overlay.
-4. Review findings in the side panel or overlay, apply safe changes instantly, copy suggestions, or ignore items that do not apply.
+- Load the unpacked extension via `chrome://extensions` (enable Developer Mode, choose the `AltSpark` folder).
 
-## Usage
+## **Quick Start**
 
-**Quick Start**
-
-1. Enable Auto-mode from the popup to let AltSpark monitor tabs automatically.
-2. When prompted, click once on the page to finish enabling on-device models—after that, audits run on their own and idle models unload automatically after a few minutes.
-3. Use the side panel to manage exclusions, inspect applied fixes, or run manual audits.
+1. Right-click any page or highlighted text and pick **AltSpark: Audit page** or **AltSpark: Audit selection**, or use the keyboard shortcut.
+2. Need a one-off alt description? Right-click the target image and choose **AltSpark: Describe this image** to open the quick overlay.
+3. Review findings in the side panel or overlay, apply safe changes instantly, copy suggestions, or ignore items that do not apply.
 
 
 ## Manual testing page
