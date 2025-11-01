@@ -35,7 +35,7 @@ The Extension make use of the following Chrome built-in ai APIs-
 ## Installation 
 
 Option 1:
-- Add the Extension directly from the [Chrome Extension Marketplace](https://chromewebstore.google.com/detail/altspark/kgnjimkhggfgadbepjibbkpoaflnplch)
+- Add the Extension directly from the [Chrome Web Store](https://chromewebstore.google.com/detail/altspark/kgnjimkhggfgadbepjibbkpoaflnplch)
 
 Option 2:
 - Load the unpacked extension via `chrome://extensions` (enable Developer Mode, choose the `AltSpark` folder).
