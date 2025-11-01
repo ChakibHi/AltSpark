@@ -24,6 +24,25 @@ A Chrome MV3 extension that audits any page or text selection for copy-level acc
 | **Links** - ambiguous or context-dependent labels | Flags phrases like "click here" and proposes clearer link text or `aria-label` so destinations are obvious before activation. | <ul><li><a href="https://www.w3.org/TR/WCAG21/#link-purpose-in-context">WCAG 2.1 SC 2.4.4 Link Purpose (In Context)</a></li><li><a href="https://www.w3.org/TR/WCAG21/#link-purpose-link-only">WCAG 2.1 SC 2.4.9 Link Purpose (Link Only)</a></li><li><a href="https://accessible.canada.ca/creating-accessibility-standards/canasc-en-301-5492024-accessibility-requirements-ict-products-and-services/9-web#toc9">EN 301 549 v3.2.1 §9.2.4.4 (Link purpose)</a></li><li><a href="https://digital.va.gov/section-508/checklists/authoring-tools/">Section 508 E205.4 (WCAG 2 adoption)</a></li></ul> |
 | **Headings** - generic wording, all caps, or excessive length | Identifies headings that are hard to scan, drafts concise title-case alternatives, and keeps previews inline for manual review. | <ul><li><a href="https://www.w3.org/TR/WCAG21/#headings-and-labels">WCAG 2.1 SC 2.4.6 Headings and Labels</a></li><li><a href="https://www.w3.org/TR/WCAG21/#section-headings">WCAG 2.1 SC 2.4.10 Section Headings</a></li><li><a href="https://accessible.canada.ca/creating-accessibility-standards/canasc-en-301-5492024-accessibility-requirements-ict-products-and-services/9-web#toc9">EN 301 549 v3.2.1 §9.2.4.6/§9.2.4.10 (Headings)</a></li><li><a href="https://digital.va.gov/section-508/checklists/authoring-tools/">Section 508 E205.4 (WCAG 2 adoption)</a></li><li><a href="https://accessibility.huit.harvard.edu/typography">Harvard Digital Accessibility: Enhance Typography for Legibility</a></li></ul> |
 
+## Chrome built-in AI APIs
+The Extension make use of the following Chrome built-in ai APIs-
+ - `Prompt API`
+ - `Summarizer API`
+ - `Translator API`
+ - `Language Detector API`
+ - `Writer & Rewriter API`
+
+## Installation 
+
+Option 1:
+- Add the Extension directly from the [Chrome Extension Marketplace](https://chromewebstore.google.com/detail/altspark/kgnjimkhggfgadbepjibbkpoaflnplch)
+
+Option 2:
+1. Load the unpacked extension via `chrome://extensions` (enable Developer Mode, choose the `AltSpark` folder).
+2. Right-click any page or highlighted text and pick **AltSpark: Audit page** or **AltSpark: Audit selection**, or use the keyboard shortcut.
+3. Need a one-off alt description? Right-click the target image and choose **AltSpark: Describe this image** to open the quick overlay.
+4. Review findings in the side panel or overlay, apply safe changes instantly, copy suggestions, or ignore items that do not apply.
+
 ## Usage
 
 **Quick Start**
@@ -32,10 +51,6 @@ A Chrome MV3 extension that audits any page or text selection for copy-level acc
 2. When prompted, click once on the page to finish enabling on-device models—after that, audits run on their own and idle models unload automatically after a few minutes.
 3. Use the side panel to manage exclusions, inspect applied fixes, or run manual audits.
 
-1. Load the unpacked extension via `chrome://extensions` (enable Developer Mode, choose the `a11y-copy-helper` folder).
-2. Right-click any page or highlighted text and pick **AltSpark: Audit page** or **AltSpark: Audit selection**, or use the keyboard shortcut.
-3. Need a one-off alt description? Right-click the target image and choose **AltSpark: Describe this image** to open the quick overlay.
-4. Review findings in the side panel or overlay, apply safe changes instantly, copy suggestions, or ignore items that do not apply.
 
 ## Manual testing page
 
